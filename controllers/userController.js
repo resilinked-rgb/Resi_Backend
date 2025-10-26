@@ -439,13 +439,36 @@ exports.changePassword = async (req, res) => {
 exports.getSupportContact = async (req, res) => {
   try {
     const Admin = require('../models/Admin');
+    const User = require('../models/User');
     
-    // Find the first admin to use as support contact
-    const admin = await Admin.findOne()
+    // First try to find an admin from Admin model
+    let admin = await Admin.findOne()
       .select('username email')
       .sort({ createdAt: 1 }); // Get the first created admin
 
+    // If no Admin model admin exists, try to find a user with userType 'admin'
     if (!admin) {
+      const adminUser = await User.findOne({ userType: 'admin' })
+        .select('firstName lastName email profilePicture')
+        .sort({ createdAt: 1 });
+
+      if (adminUser) {
+        // Return admin user info formatted for chat
+        return res.status(200).json({
+          success: true,
+          supportContact: {
+            _id: adminUser._id,
+            firstName: adminUser.firstName || 'ResiLinked',
+            lastName: adminUser.lastName || 'Support',
+            email: adminUser.email,
+            userType: 'admin',
+            profilePicture: adminUser.profilePicture || null
+          },
+          alert: "Support contact loaded"
+        });
+      }
+
+      // No admin found in either model
       return res.status(404).json({
         success: false,
         message: "No support contact available",
@@ -453,7 +476,7 @@ exports.getSupportContact = async (req, res) => {
       });
     }
 
-    // Return admin info formatted like a user for chat
+    // Return Admin model admin info formatted like a user for chat
     res.status(200).json({
       success: true,
       supportContact: {
