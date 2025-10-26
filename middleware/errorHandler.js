@@ -1,7 +1,10 @@
+
 const errorHandler = (err, req, res, next) => {
+    // Log the full error object for better debugging
+    console.error('Full error object:', err);
     console.error('Error:', {
-        message: err.message,
-        stack: err.stack,
+        message: err && err.message,
+        stack: err && err.stack,
         url: req.originalUrl,
         method: req.method,
         ip: req.ip,
@@ -76,14 +79,13 @@ const errorHandler = (err, req, res, next) => {
     }
 
     // Default error
-    const statusCode = err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
-    
+    const statusCode = err && err.statusCode ? err.statusCode : 500;
+    const message = (err && err.message) ? err.message : 'Unknown error occurred';
     res.status(statusCode).json({
         success: false,
         message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : message,
         alert: 'An unexpected error occurred',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+        ...(process.env.NODE_ENV === 'development' && { stack: err && err.stack })
     });
 };
 
