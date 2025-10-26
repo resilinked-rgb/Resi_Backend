@@ -27,6 +27,8 @@ const activitySchema = new mongoose.Schema({
       'application_rejected',
       'password_reset',
       'email_verification',
+      'email_change_request',
+      'email_changed',
       'admin_action',
       'report_submitted',
       'login',

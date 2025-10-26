@@ -125,16 +125,14 @@ exports.editProfile = async (req, res) => {
       }
     }
 
-    // ✅ Email uniqueness check
+    // ✅ Email uniqueness check - prevent direct email changes
     if (updates.email && updates.email !== originalUser.email) {
-      const existingUser = await User.findOne({ email: updates.email });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already taken",
-          alert: "This email is already in use by another account",
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: "Email cannot be changed directly",
+        alert: "To change your email, please use the 'Change Email' feature which requires verification",
+        requiresVerification: true
+      });
     }
 
     // ✅ Perform the update

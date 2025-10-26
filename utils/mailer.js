@@ -260,8 +260,111 @@ const verifyConnection = async () => {
  * Make sure to set up SPF and DMARC records in your DNS settings as well.
  * See EMAIL_SETUP.md for detailed instructions.
  */
+/**
+ * Sends email change verification to current email
+ * @param {string} currentEmail - Current email address
+ * @param {string} firstName - User's first name
+ * @param {string} newEmail - New email address requested
+ * @param {string} verificationLink - Verification link path
+ */
+const sendEmailChangeVerification = async (currentEmail, firstName, newEmail, verificationLink) => {
+  try {
+    const frontendUrl = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(",")[0].trim() : 'https://resi-frontend.vercel.app';
+    const fullVerificationLink = `${frontendUrl}${verificationLink}`;
+    
+    const transporter = createTransporter();
+    
+    const emailContent = {
+      to: currentEmail,
+      from: process.env.EMAIL_FROM || "ResiLinked <noreply@resilinked.com>",
+      subject: "Verify Your Email Change - ResiLinked",
+      text: `Hi ${firstName}, You requested to change your email to ${newEmail}. Please verify this change by visiting: ${fullVerificationLink}. If you did not request this change, please ignore this email.`,
+      html: `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Verify Email Change</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#f4f4f4">
+            <tr>
+              <td align="center" style="padding: 40px 0;">
+                <table width="600" border="0" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <!-- Header -->
+                  <tr>
+                    <td style="padding: 30px 40px; background: #9333ea; border-radius: 8px 8px 0 0;">
+                      <h1 style="color: #ffffff; margin: 0;">ResiLinked</h1>
+                    </td>
+                  </tr>
+                  <!-- Content -->
+                  <tr>
+                    <td style="padding: 40px;">
+                      <h2 style="color: #9333ea; margin-top: 0;">🔐 Email Change Request</h2>
+                      <p>Hi ${firstName},</p>
+                      <p>You requested to change your email address from:</p>
+                      <p style="background: #f4f4f4; padding: 10px; border-radius: 4px; font-family: monospace;">
+                        <strong>Current:</strong> ${currentEmail}<br>
+                        <strong>New:</strong> ${newEmail}
+                      </p>
+                      <p>To confirm this change, please click the button below:</p>
+                      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+                        <tr>
+                          <td align="center" style="padding: 20px 0;">
+                            <a href="${fullVerificationLink}" style="display: inline-block; background: #9333ea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Verify Email Change</a>
+                          </td>
+                        </tr>
+                      </table>
+                      <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                      <p style="background: #f4f4f4; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 14px;"><a href="${fullVerificationLink}" style="color: #9333ea; text-decoration: none;">${fullVerificationLink}</a></p>
+                      
+                      <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                        <p style="margin: 0; color: #856404;"><strong>⚠️ Important Security Notice:</strong></p>
+                        <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #856404;">
+                          <li>This link will expire in 1 hour</li>
+                          <li>If you did not request this change, please ignore this email</li>
+                          <li>Your email will NOT be changed unless you click the verification link</li>
+                        </ul>
+                      </div>
+                      
+                      <p style="border-top: 1px solid #eee; margin-top: 30px; padding-top: 20px; font-size: 14px; color: #666;">For your security, this email was sent to your current email address to verify the change.</p>
+                    </td>
+                  </tr>
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 20px; text-align: center; background: #f8f8f8; border-radius: 0 0 8px 8px; font-size: 12px; color: #666;">
+                      <p>&copy; ${new Date().getFullYear()} ResiLinked. All rights reserved.</p>
+                      <p>This is an automated email, please do not reply.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `,
+      headers: {
+        "X-Priority": "1",
+        "X-MSMail-Priority": "High",
+        "Importance": "High",
+        "X-Entity-Ref-ID": `resilinked-email-change-${new Date().getTime()}`,
+      }
+    };
+
+    const info = await transporter.sendMail(emailContent);
+    console.log('✅ Email change verification sent to:', currentEmail);
+    return true;
+  } catch (error) {
+    console.error('❌ Error sending email change verification:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendVerificationEmail,
   sendResetEmail,
+  sendEmailChangeVerification,
   verifyConnection
 };
