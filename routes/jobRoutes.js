@@ -13,6 +13,7 @@ router.get('/my-applications-received', auth.verify, jobController.getMyApplicat
 router.get('/my-invitations', auth.verify, jobController.getMyInvitations);
 router.get('/search', jobController.search);
 router.get('/popular', jobController.getPopularJobs);
+router.get('/employer/:employerId/completed', auth.verify, jobController.getEmployerCompletedJobs);
 // Specific routes with parameters must come after static routes
 router.post('/:id/apply', auth.verify, jobController.applyJob);
 router.delete('/:id/cancel-application', auth.verify, jobController.cancelApplication);

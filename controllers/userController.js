@@ -271,7 +271,10 @@ exports.setGoal = async (req, res) => {
 // ✅ GET WORKERS
 exports.getWorkers = async (req, res) => {
   try {
-    const { barangay, skill, search, page = 1, limit = 20 } = req.query;
+    const { barangay, skill, search, keyword, page = 1, limit = 20 } = req.query;
+
+    // Support both 'search' and 'keyword' parameters
+    const searchTerm = keyword || search;
 
     let query = {
       userType: { $in: ['employee', 'both'] },
@@ -280,11 +283,11 @@ exports.getWorkers = async (req, res) => {
 
     if (barangay) query.barangay = barangay;
     if (skill) query.skills = { $in: skill.split(',') };
-    if (search) {
+    if (searchTerm) {
       query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { skills: { $in: [new RegExp(search, 'i')] } },
+        { firstName: { $regex: searchTerm, $options: 'i' } },
+        { lastName: { $regex: searchTerm, $options: 'i' } },
+        { skills: { $in: [new RegExp(searchTerm, 'i')] } },
       ];
     }
 
@@ -306,7 +309,7 @@ exports.getWorkers = async (req, res) => {
         searchParams: {
           barangay: barangay || 'all',
           skill: skill || 'all',
-          search: search || '',
+          search: searchTerm || '',
           page,
           limit,
           results: total,
@@ -339,24 +342,25 @@ exports.getWorkers = async (req, res) => {
 // ✅ SEARCH USERS (for chat/messaging)
 exports.searchUsers = async (req, res) => {
   try {
-    const { search, limit = 20 } = req.query;
-
-    if (!search || search.trim().length === 0) {
-      return res.status(200).json({
-        success: true,
-        users: [],
-        alert: "Please enter a search term",
-      });
-    }
+    const { search, userType, limit = 20 } = req.query;
 
     const query = {
       isVerified: true,
-      $or: [
+    };
+
+    // Add userType filter if provided
+    if (userType) {
+      query.userType = userType;
+    }
+
+    // Add search filter if provided
+    if (search && search.trim().length > 0) {
+      query.$or = [
         { firstName: { $regex: search, $options: 'i' } },
         { lastName: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
-      ],
-    };
+      ];
+    }
 
     const users = await User.find(query)
       .select('firstName lastName email userType profilePicture')

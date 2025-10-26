@@ -507,17 +507,29 @@ exports.assignWorker = async (req, res) => {
 // GET /api/jobs/search → Search jobs with filters
 exports.search = async (req, res) => {
     try {
-        const { skill, barangay, minPrice, maxPrice, sortBy = 'datePosted', order = 'desc', page = 1, limit = 10 } = req.query;
+        const { keyword, skill, barangay, minPrice, maxPrice, sortBy = 'datePosted', order = 'desc', page = 1, limit = 10 } = req.query;
         
-        let query = { isOpen: true };
+        console.log('🔍 Search Request:', { keyword, skill, barangay, minPrice, maxPrice });
+        
+        let query = { isOpen: true, isDeleted: false };
+        
+        // Keyword search across title and description
+        if (keyword && keyword.trim()) {
+            query.$or = [
+                { title: { $regex: keyword.trim(), $options: 'i' } },
+                { description: { $regex: keyword.trim(), $options: 'i' } }
+            ];
+        }
         
         if (skill) query.skillsRequired = { $in: skill.split(',') };
-        if (barangay) query.barangay = barangay;
+        if (barangay) query.barangay = { $regex: barangay, $options: 'i' };
         if (minPrice || maxPrice) {
             query.price = {};
             if (minPrice) query.price.$gte = Number(minPrice);
             if (maxPrice) query.price.$lte = Number(maxPrice);
         }
+
+        console.log('📊 Final Query:', JSON.stringify(query, null, 2));
 
         const sortOptions = {};
         sortOptions[sortBy] = order === 'asc' ? 1 : -1;
@@ -535,6 +547,7 @@ exports.search = async (req, res) => {
             success: true,
             data: jobs,
             filters: {
+                keyword,
                 skill,
                 barangay,
                 priceRange: { minPrice, maxPrice }
@@ -576,6 +589,54 @@ exports.getPopularJobs = async (req, res) => {
       success: false,
       message: "Error fetching popular jobs",
       error: err.message,
+      jobs: []
+    });
+  }
+};
+
+exports.getEmployerCompletedJobs = async (req, res) => {
+  try {
+    const { employerId } = req.params;
+    
+    // Find all completed jobs posted by this employer
+    const jobs = await Job.find({
+      postedBy: employerId,
+      isCompleted: true,
+      isDeleted: false
+    })
+    .populate('assignedWorker', 'firstName lastName email')
+    .populate('postedBy', 'firstName lastName')
+    .sort({ datePosted: -1 })
+    .lean();
+
+    // Get ratings for each job
+    const Rating = require('../models/Rating');
+    const jobsWithRatings = await Promise.all(jobs.map(async (job) => {
+      if (job.assignedWorker) {
+        const rating = await Rating.findOne({
+          job: job._id,
+          ratedUser: job.assignedWorker._id
+        }).lean();
+        
+        return {
+          ...job,
+          rating: rating || null
+        };
+      }
+      return job;
+    }));
+
+    res.status(200).json({
+      success: true,
+      jobs: jobsWithRatings || [],
+      count: jobsWithRatings.length
+    });
+  } catch (err) {
+    console.error('Error fetching employer completed jobs:', err);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching completed jobs",
+      alert: "Failed to load employer's completed jobs",
       jobs: []
     });
   }
