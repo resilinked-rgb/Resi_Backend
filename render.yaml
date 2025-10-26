@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: resilinked-backend
+    env: node
+    plan: free
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        fromSecret: MONGODB_URI
+      - key: JWT_SECRET
+        fromSecret: JWT_SECRET
+      - key: SENDGRID_API_KEY
+        fromSecret: SENDGRID_API_KEY
+      - key: EMAIL_FROM
+        value: "ResiLinked <resilinked@gmail.com>"
+      - key: EMAIL_SERVICE
+        value: gmail
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: 587
+      - key: EMAIL_SECURE
+        value: false
+      - key: EMAIL_USER
+        fromSecret: EMAIL_USER
+      - key: EMAIL_PASS
+        fromSecret: EMAIL_PASS
+      - key: CLIENT_URL
+        value: https://resi-frontend.vercel.app,https://resilinked.vercel.app
+      - key: FRONTEND_URL
+        value: https://resi-frontend.vercel.app,https://resilinked.vercel.app
+      - key: CORS_ENABLED
+        value: true
+      - key: RATE_LIMIT_WINDOW_MS
+        value: 900000
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: AUTH_RATE_LIMIT_MAX
+        value: 5
+    healthCheckPath: /health
+    autoDeploy: true
