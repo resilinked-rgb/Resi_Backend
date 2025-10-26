@@ -26,21 +26,21 @@ const jobSchema = new mongoose.Schema({
 // Add a global query middleware to filter out soft-deleted jobs by default
 jobSchema.pre('find', function() {
     // Only include non-deleted jobs unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!this.getOptions().includeSoftDeleted) {
         this.where({ isDeleted: false });
     }
 });
 
 jobSchema.pre('findOne', function() {
     // Only include non-deleted jobs unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!this.getOptions().includeSoftDeleted) {
         this.where({ isDeleted: false });
     }
 });
 
 jobSchema.pre('countDocuments', function() {
     // Only count non-deleted jobs unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!this.getOptions().includeSoftDeleted) {
         this.where({ isDeleted: false });
     }
 });

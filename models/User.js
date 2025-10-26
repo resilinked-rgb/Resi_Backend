@@ -57,22 +57,32 @@ const userSchema = new mongoose.Schema({
 
 // Add a global query middleware to filter out soft-deleted users by default
 userSchema.pre('find', function() {
+    const options = this.getOptions();
+    const query = this.getQuery();
+    console.log('=== USER FIND MIDDLEWARE ===');
+    console.log('Options:', options);
+    console.log('Query:', query);
+    console.log('includeSoftDeleted:', options.includeSoftDeleted);
+    
     // Only include non-deleted users unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!options.includeSoftDeleted) {
+        console.log('Adding isDeleted: false filter');
         this.where({ isDeleted: false });
+    } else {
+        console.log('Skipping isDeleted filter - includeSoftDeleted is true');
     }
 });
 
 userSchema.pre('findOne', function() {
     // Only include non-deleted users unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!this.getOptions().includeSoftDeleted) {
         this.where({ isDeleted: false });
     }
 });
 
 userSchema.pre('countDocuments', function() {
     // Only count non-deleted users unless explicitly asked for deleted ones
-    if (!this.getQuery().includeSoftDeleted) {
+    if (!this.getOptions().includeSoftDeleted) {
         this.where({ isDeleted: false });
     }
 });

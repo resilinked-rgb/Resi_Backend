@@ -174,8 +174,17 @@ exports.adminEditUser = async (req, res) => {
 };
 exports.adminDeleteUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
-        res.status(200).json({ deletedId: user?._id });
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        
+        // Soft delete instead of hard delete
+        user.isDeleted = true;
+        user.deletedAt = new Date();
+        await user.save();
+        
+        res.status(200).json({ deletedId: user._id, message: "User soft-deleted successfully" });
     } catch (err) {
         res.status(500).json({ message: "Error deleting user", error: err.message });
     }

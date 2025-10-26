@@ -24,23 +24,32 @@ const createActivityLog = async (activityData) => {
 // Get all soft-deleted users
 exports.getDeletedUsers = async (req, res) => {
   try {
-    // We need to bypass the global query middleware
-    const deletedUsers = await User.find({ isDeleted: true });
+    // Bypass the global query middleware by using setOptions
+    const deletedUsers = await User.find({ isDeleted: true })
+      .setOptions({ includeSoftDeleted: true })
+      .lean();
+    
+    console.log('=== DELETED USERS QUERY ===');
+    console.log('Total found:', deletedUsers.length);
+    console.log('Sample data (first user):', deletedUsers[0]);
+    console.log('IsDeleted values:', deletedUsers.map(u => ({ email: u.email, isDeleted: u.isDeleted })));
     
     res.status(200).json({
       success: true,
       count: deletedUsers.length,
       users: deletedUsers.map(user => ({
-        id: user._id,
+        _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
         userType: user.userType,
+        barangay: user.barangay,
         deletedAt: user.deletedAt
       })),
       alert: `Found ${deletedUsers.length} deleted users`
     });
   } catch (err) {
+    console.error('Error fetching deleted users:', err);
     res.status(500).json({
       success: false,
       message: "Error fetching deleted users",
@@ -56,8 +65,8 @@ exports.restoreUser = async (req, res) => {
     // Find the user with isDeleted flag, bypassing the middleware
     const user = await User.findOne({ 
       _id: req.params.id,
-      isDeleted: true 
-    });
+      isDeleted: true
+    }).setOptions({ includeSoftDeleted: true });
     
     if (!user) {
       return res.status(404).json({
@@ -124,7 +133,8 @@ exports.restoreUser = async (req, res) => {
 exports.permanentlyDeleteUser = async (req, res) => {
   try {
     // Find the user to get details before permanent deletion
-    const user = await User.findOne({ _id: req.params.id, isDeleted: true });
+    const user = await User.findOne({ _id: req.params.id, isDeleted: true })
+      .setOptions({ includeSoftDeleted: true });
     
     if (!user) {
       return res.status(404).json({
@@ -183,15 +193,21 @@ exports.getDeletedJobs = async (req, res) => {
   try {
     // We need to bypass the global query middleware
     const deletedJobs = await Job.find({ isDeleted: true })
-      .populate('postedBy', 'firstName lastName email');
+      .setOptions({ includeSoftDeleted: true })
+      .populate('postedBy', 'firstName lastName email')
+      .lean();
+    
+    console.log('Found deleted jobs:', deletedJobs.length);
     
     res.status(200).json({
       success: true,
       count: deletedJobs.length,
       jobs: deletedJobs.map(job => ({
-        id: job._id,
+        _id: job._id,
         title: job.title,
-        postedBy: job.postedBy ? `${job.postedBy.firstName} ${job.postedBy.lastName}` : 'Unknown',
+        postedBy: job.postedBy,
+        barangay: job.barangay,
+        location: job.location,
         price: job.price,
         datePosted: job.datePosted,
         deletedAt: job.deletedAt
@@ -199,6 +215,7 @@ exports.getDeletedJobs = async (req, res) => {
       alert: `Found ${deletedJobs.length} deleted jobs`
     });
   } catch (err) {
+    console.error('Error fetching deleted jobs:', err);
     res.status(500).json({
       success: false,
       message: "Error fetching deleted jobs",
@@ -214,8 +231,10 @@ exports.restoreJob = async (req, res) => {
     // Find the job with isDeleted flag, bypassing the middleware
     const job = await Job.findOne({ 
       _id: req.params.id,
-      isDeleted: true 
-    }).populate('postedBy', 'firstName lastName email');
+      isDeleted: true
+    })
+      .setOptions({ includeSoftDeleted: true })
+      .populate('postedBy', 'firstName lastName email');
     
     if (!job) {
       return res.status(404).json({
@@ -283,7 +302,8 @@ exports.restoreJob = async (req, res) => {
 exports.permanentlyDeleteJob = async (req, res) => {
   try {
     // Find the job to get details before permanent deletion
-    const job = await Job.findOne({ _id: req.params.id, isDeleted: true });
+    const job = await Job.findOne({ _id: req.params.id, isDeleted: true })
+      .setOptions({ includeSoftDeleted: true });
     
     if (!job) {
       return res.status(404).json({
@@ -342,23 +362,29 @@ exports.getDeletedGoals = async (req, res) => {
   try {
     // We need to bypass the global query middleware
     const deletedGoals = await Goal.find({ isDeleted: true })
-      .populate('user', 'firstName lastName email');
+      .setOptions({ includeSoftDeleted: true })
+      .populate('user', 'firstName lastName email')
+      .lean();
+    
+    console.log('Found deleted goals:', deletedGoals.length);
     
     res.status(200).json({
       success: true,
       count: deletedGoals.length,
       goals: deletedGoals.map(goal => ({
-        id: goal._id,
+        _id: goal._id,
         description: goal.description,
         targetAmount: goal.targetAmount,
+        currentAmount: goal.currentAmount,
         progress: goal.progress,
         completed: goal.completed,
-        user: goal.user ? `${goal.user.firstName} ${goal.user.lastName}` : 'Unknown',
+        user: goal.user,
         deletedAt: goal.deletedAt
       })),
       alert: `Found ${deletedGoals.length} deleted goals`
     });
   } catch (err) {
+    console.error('Error fetching deleted goals:', err);
     res.status(500).json({
       success: false,
       message: "Error fetching deleted goals",
@@ -371,11 +397,27 @@ exports.getDeletedGoals = async (req, res) => {
 // Restore a soft-deleted goal
 exports.restoreGoal = async (req, res) => {
   try {
+    console.log('=== RESTORE GOAL ===');
+    console.log('Goal ID:', req.params.id);
+    console.log('User:', req.user.id, req.user.email);
+    
     // Find the goal with isDeleted flag, bypassing the middleware
     const goal = await Goal.findOne({ 
       _id: req.params.id,
-      isDeleted: true 
-    }).populate('user', 'firstName lastName email');
+      isDeleted: true
+    })
+      .setOptions({ includeSoftDeleted: true })
+      .populate('user', 'firstName lastName email');
+    
+    console.log('Found goal:', goal ? 'YES' : 'NO');
+    if (goal) {
+      console.log('Goal data:', {
+        id: goal._id,
+        description: goal.description,
+        isDeleted: goal.isDeleted,
+        user: goal.user
+      });
+    }
     
     if (!goal) {
       return res.status(404).json({
@@ -389,7 +431,9 @@ exports.restoreGoal = async (req, res) => {
     goal.isDeleted = false;
     goal.deletedAt = null;
     // Do not automatically re-activate the goal
+    console.log('Saving restored goal...');
     await goal.save();
+    console.log('Goal saved successfully');
     
     // Log the action
     await createActivityLog({
@@ -430,6 +474,8 @@ exports.restoreGoal = async (req, res) => {
       alert: "Goal has been restored"
     });
   } catch (err) {
+    console.error('Error restoring goal:', err);
+    console.error('Error stack:', err.stack);
     res.status(500).json({
       success: false,
       message: "Error restoring goal",
@@ -443,7 +489,8 @@ exports.restoreGoal = async (req, res) => {
 exports.permanentlyDeleteGoal = async (req, res) => {
   try {
     // Find the goal to get details before permanent deletion
-    const goal = await Goal.findOne({ _id: req.params.id, isDeleted: true });
+    const goal = await Goal.findOne({ _id: req.params.id, isDeleted: true })
+      .setOptions({ includeSoftDeleted: true });
     
     if (!goal) {
       return res.status(404).json({

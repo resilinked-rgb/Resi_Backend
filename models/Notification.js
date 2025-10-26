@@ -29,7 +29,8 @@ const notificationSchema = new mongoose.Schema({
             'new_message',
             'message',
             'job_update',
-            'account_update'
+            'account_update',
+            'goal_update'
         ],
         required: true
     },

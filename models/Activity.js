@@ -32,7 +32,13 @@ const activitySchema = new mongoose.Schema({
       'admin_action',
       'report_submitted',
       'login',
-      'security_alert'
+      'security_alert',
+      'user_restore',
+      'user_permanent_delete',
+      'job_restore',
+      'job_permanent_delete',
+      'goal_restore',
+      'goal_permanent_delete'
     ]
   },
   description: {
