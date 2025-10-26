@@ -73,13 +73,28 @@ exports.getAll = async (req, res) => {
             limit,
             startDate,
             endDate,
-            status
+            status,
+            postedBy,
+            completed
         } = req.query;
 
         console.log('Parsed params - sortBy:', sortBy, 'order:', order, 'limit:', limit);
 
-        // Build query
-        let query = { isOpen: true };
+        // Build query - allow filtering by various criteria
+        let query = {};
+        
+        // Filter by postedBy if provided (for viewing employer's jobs)
+        if (postedBy) {
+            query.postedBy = postedBy;
+        } else {
+            // Only show open jobs if not filtering by specific employer
+            query.isOpen = true;
+        }
+        
+        // Filter by completed status if provided
+        if (completed !== undefined) {
+            query.completed = completed === 'true';
+        }
         
         // Add date filtering if provided
         if (startDate || endDate) {
@@ -92,6 +107,8 @@ exports.getAll = async (req, res) => {
         if (status && status !== 'all') {
             query.status = status;
         }
+
+        console.log('Final query:', query);
 
         // Build sort object
         const sortObj = {};
@@ -141,6 +158,7 @@ exports.getAll = async (req, res) => {
 
         let jobQuery = Job.find(query)
             .populate('postedBy', 'firstName lastName profilePicture')
+            .populate('assignedTo', 'firstName lastName profilePicture email')
             .sort(sortObj);
 
         if (limit) {
@@ -149,9 +167,37 @@ exports.getAll = async (req, res) => {
 
         const jobs = await jobQuery;
 
+        // If fetching completed jobs, also fetch ratings for each job
+        if (completed === 'true') {
+            const Rating = require('../models/Rating');
+            
+            const jobsWithRatings = await Promise.all(jobs.map(async (job) => {
+                const jobObj = job.toObject();
+                
+                // Find rating for this job
+                const rating = await Rating.findOne({ job: job._id })
+                    .populate('rater', 'firstName lastName')
+                    .lean();
+                
+                if (rating) {
+                    jobObj.rating = rating.rating;
+                    jobObj.ratingComment = rating.comment;
+                    jobObj.ratedBy = rating.rater;
+                    jobObj.ratedAt = rating.createdAt;
+                }
+                
+                return jobObj;
+            }));
+            
+            return res.status(200).json({
+                jobs: jobsWithRatings,
+                alert: `Found ${jobsWithRatings.length} completed jobs`
+            });
+        }
+
         res.status(200).json({
             jobs,
-            alert: `Found ${jobs.length} open jobs`
+            alert: `Found ${jobs.length} ${completed === 'true' ? 'completed' : status ? status : 'open'} jobs`
         });
     } catch (err) {
         console.error('Error in getAll jobs:', err);
@@ -811,6 +857,7 @@ exports.completeJob = async (req, res) => {
         
         // Mark job as completed
         job.completed = true;
+        job.completedAt = new Date();
         job.isOpen = false;
         job.status = 'completed';
         await job.save();

@@ -49,8 +49,9 @@ exports.sendMessage = async (req, res) => {
 
     await message.save();
 
-    // Populate sender info
-    await message.populate('sender', '_id firstName lastName profilePicture');
+    // Populate sender and recipient info
+    await message.populate('sender', '_id firstName lastName email profilePicture');
+    await message.populate('recipient', '_id firstName lastName email profilePicture');
 
     // No notification for chat messages (to avoid spam)
     // Users will see new messages in real-time through the chat interface
@@ -83,7 +84,8 @@ exports.getInbox = async (req, res) => {
       recipient: req.user.id,
       deletedBy: { $ne: req.user.id }
     })
-      .populate('sender', '_id firstName lastName profilePicture userType')
+      .populate('sender', '_id firstName lastName email profilePicture userType')
+      .populate('recipient', '_id firstName lastName email profilePicture userType')
       .populate('relatedJob', 'title')
       .sort({ createdAt: -1 });
 
@@ -118,7 +120,8 @@ exports.getSentMessages = async (req, res) => {
       sender: req.user.id,
       deletedBy: { $ne: req.user.id }
     })
-      .populate('recipient', '_id firstName lastName profilePicture userType')
+      .populate('sender', '_id firstName lastName email profilePicture userType')
+      .populate('recipient', '_id firstName lastName email profilePicture userType')
       .populate('relatedJob', 'title')
       .sort({ createdAt: -1 });
 
@@ -153,8 +156,8 @@ exports.getConversation = async (req, res) => {
       ],
       deletedBy: { $ne: req.user.id }
     })
-      .populate('sender', '_id firstName lastName profilePicture')
-      .populate('recipient', '_id firstName lastName profilePicture')
+      .populate('sender', '_id firstName lastName email profilePicture')
+      .populate('recipient', '_id firstName lastName email profilePicture')
       .populate('relatedJob', 'title')
       .sort({ createdAt: 1 });
 

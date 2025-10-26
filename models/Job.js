@@ -16,6 +16,7 @@ const jobSchema = new mongoose.Schema({
     }],
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // If accepted
     completed: { type: Boolean, default: false },
+    completedAt: { type: Date }, // Date when job was marked as completed
     
     // Soft Delete Information
     isDeleted: { type: Boolean, default: false },

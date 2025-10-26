@@ -56,12 +56,13 @@ exports.reportUser = async (req, res) => {
         }
 
         // Populate reporter and reportedUser for response
-        await report.populate('reporter', 'firstName lastName email')
-                    .populate('reportedUser', 'firstName lastName email');
+        const populatedReport = await Report.findById(report._id)
+            .populate('reporter', 'firstName lastName email')
+            .populate('reportedUser', 'firstName lastName email');
 
         res.status(201).json({
             message: "Report submitted successfully",
-            report,
+            report: populatedReport,
             alert: "Report submitted to administrators"
         });
     } catch (err) {
@@ -78,10 +79,16 @@ exports.reportUser = async (req, res) => {
  * Allows a logged-in user to report a job posting.
  */
 exports.reportJob = async (req, res) => {
+    console.log('🔵 reportJob function called');
+    console.log('🔵 req.user:', req.user);
+    console.log('🔵 req.body:', req.body);
+    
     try {
+        console.log('📥 Report job request body:', req.body);
         const { reportedJobId, reason } = req.body;
 
         if (!reportedJobId || !reason) {
+            console.log('❌ Missing required fields:', { reportedJobId, reason });
             return res.status(400).json({
                 message: "Missing required fields",
                 required: ["reportedJobId", "reason"],
@@ -90,8 +97,21 @@ exports.reportJob = async (req, res) => {
         }
 
         // Verify the job exists
-        const job = await Job.findById(reportedJobId);
+        console.log('🔍 Looking for job with ID:', reportedJobId);
+        let job;
+        try {
+            job = await Job.findById(reportedJobId);
+            console.log('🔍 Job found:', job ? 'Yes' : 'No');
+        } catch (findError) {
+            console.error('❌ Error finding job:', findError.message);
+            return res.status(400).json({
+                message: "Invalid job ID format",
+                alert: "The job ID is not valid"
+            });
+        }
+        
         if (!job) {
+            console.log('❌ Job not found');
             return res.status(404).json({
                 message: "Job not found",
                 alert: "The job you're trying to report doesn't exist"
@@ -99,6 +119,7 @@ exports.reportJob = async (req, res) => {
         }
 
         // Check for duplicate pending reports
+        console.log('🔍 Checking for existing reports...');
         const existingReport = await Report.findOne({
             reporter: req.user.id,
             reportedJob: reportedJobId,
@@ -106,6 +127,7 @@ exports.reportJob = async (req, res) => {
         });
 
         if (existingReport) {
+            console.log('⚠️ Duplicate report found');
             return res.status(400).json({
                 message: "Already reported",
                 alert: "You already have a pending report for this job"
@@ -118,27 +140,43 @@ exports.reportJob = async (req, res) => {
             reason 
         });
         await report.save();
+        console.log('✅ Report saved successfully:', report._id);
 
-        // Notify all admins
-        const admins = await User.find({ userType: 'admin' });
-        for (const admin of admins) {
-            await createNotification({
-                recipient: admin._id,
-                type: 'job_reported',
-                message: `New report against job "${job.title}": ${reason}`
-            });
+        // Notify all admins (don't fail if this errors)
+        try {
+            const admins = await User.find({ userType: 'admin' });
+            console.log(`📧 Notifying ${admins.length} admins`);
+            for (const admin of admins) {
+                await createNotification({
+                    recipient: admin._id,
+                    type: 'job_reported',
+                    message: `New report against job "${job.title}": ${reason}`
+                });
+            }
+        } catch (notificationError) {
+            console.error('⚠️ Failed to send notifications:', notificationError.message);
+            // Continue anyway - report was saved
         }
 
         // Populate reporter and reportedJob for response
-        await report.populate('reporter', 'firstName lastName email')
-                    .populate('reportedJob', 'title description postedBy');
+        let populatedReport;
+        try {
+            populatedReport = await Report.findById(report._id)
+                .populate('reporter', 'firstName lastName email')
+                .populate('reportedJob', 'title description postedBy');
+        } catch (populateError) {
+            console.error('⚠️ Failed to populate report:', populateError.message);
+            populatedReport = report; // Use unpopulated report as fallback
+        }
 
+        console.log('✅ Report submission complete');
         res.status(201).json({
             message: "Report submitted successfully",
-            report,
+            report: populatedReport,
             alert: "Report submitted to administrators"
         });
     } catch (err) {
+        console.error('❌ Error in reportJob:', err);
         res.status(500).json({ 
             message: "Error reporting job", 
             error: err.message,
