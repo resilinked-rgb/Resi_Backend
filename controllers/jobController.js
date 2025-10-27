@@ -87,11 +87,12 @@ exports.getAll = async (req, res) => {
         if (postedBy) {
             query.postedBy = postedBy;
         } else {
-            // Only show open jobs if not filtering by specific employer
+            // Only show open, non-completed jobs if not filtering by specific employer
             query.isOpen = true;
+            query.completed = false;
         }
         
-        // Filter by completed status if provided
+        // Filter by completed status if explicitly provided (override default)
         if (completed !== undefined) {
             query.completed = completed === 'true';
         }
@@ -304,6 +305,14 @@ exports.applyJob = async (req, res) => {
             return res.status(404).json({ 
                 message: "Job not found",
                 alert: "This job is no longer available"
+            });
+        }
+
+        // Check if the employer account still exists
+        if (!job.postedBy) {
+            return res.status(404).json({ 
+                message: "Employer account not found",
+                alert: "The employer who posted this job no longer exists"
             });
         }
 
@@ -557,7 +566,8 @@ exports.search = async (req, res) => {
         
         console.log('🔍 Search Request:', { keyword, skill, barangay, minPrice, maxPrice });
         
-        let query = { isOpen: true, isDeleted: false };
+        // Only show open, non-deleted, and non-completed jobs
+        let query = { isOpen: true, isDeleted: false, completed: false };
         
         // Keyword search across title and description
         if (keyword && keyword.trim()) {
@@ -585,13 +595,17 @@ exports.search = async (req, res) => {
                 .sort(sortOptions)
                 .skip((page - 1) * limit)
                 .limit(limit)
-                .populate('postedBy', 'firstName lastName'),
+                .populate('postedBy', 'firstName lastName')
+                .populate('applicants.user', '_id'),
             Job.countDocuments(query)
         ]);
 
+        // Filter out jobs where the employer account no longer exists
+        const validJobs = jobs.filter(job => job.postedBy !== null);
+
         res.status(200).json({
             success: true,
-            data: jobs,
+            data: validJobs,
             filters: {
                 keyword,
                 skill,
@@ -601,11 +615,11 @@ exports.search = async (req, res) => {
             pagination: {
                 page: parseInt(page),
                 limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / limit)
+                total: validJobs.length,
+                pages: Math.ceil(validJobs.length / limit)
             },
             sortedBy: `${sortBy} (${order})`,
-            alert: jobs.length ? `Found ${total} jobs` : "No jobs found matching your criteria"
+            alert: validJobs.length ? `Found ${validJobs.length} jobs` : "No jobs found matching your criteria"
         });
     } catch (err) {
         res.status(500).json({ 
@@ -618,7 +632,7 @@ exports.search = async (req, res) => {
 
 exports.getPopularJobs = async (req, res) => {
   try {
-    const jobs = await Job.find({ isOpen: true, isDeleted: false })
+    const jobs = await Job.find({ isOpen: true, isDeleted: false, completed: false })
       .populate('postedBy', 'firstName lastName')
       .sort({ applicants: -1, datePosted: -1 })
       .limit(10)
@@ -690,9 +704,10 @@ exports.getEmployerCompletedJobs = async (req, res) => {
 
 exports.getMyApplications = async (req, res) => {
   try {
-    // First fetch all jobs where the user has applied
+    // First fetch all jobs where the user has applied (exclude deleted jobs)
     const allApplicationJobs = await Job.find({
-      'applicants.user': req.user.id
+      'applicants.user': req.user.id,
+      isDeleted: { $ne: true }
     })
     .populate('postedBy', 'firstName lastName')
     .sort({ datePosted: -1 });
@@ -707,7 +722,8 @@ exports.getMyApplications = async (req, res) => {
       );
       
       // Determine if this is an active application or part of history
-      const isActive = job.isOpen && userApplication && userApplication.status === 'pending';
+      // Active = job is open, not completed, and application is pending
+      const isActive = job.isOpen && !job.completed && userApplication && userApplication.status === 'pending';
       
       // Add the job to the appropriate list
       if (isActive) {
@@ -717,6 +733,7 @@ exports.getMyApplications = async (req, res) => {
         const statusInfo = {
           status: userApplication ? userApplication.status : 'unknown',
           isOpen: job.isOpen,
+          completed: job.completed || false,
           assignedToMe: job.assignedTo && job.assignedTo.toString() === req.user.id
         };
         applicationHistory.push({ ...job.toObject(), applicationInfo: statusInfo });
@@ -1416,7 +1433,7 @@ exports.inviteWorker = async (req, res) => {
             console.log('Existing invitation check result:', alreadyInvited ? 'Found' : 'Not found');
 
             if (alreadyInvited) {
-                return res.status(200).json({
+                return res.status(400).json({
                     message: "Already invited",
                     alert: "This worker has already been invited to this job"
                 });

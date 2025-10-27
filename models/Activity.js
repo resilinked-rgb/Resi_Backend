@@ -38,7 +38,8 @@ const activitySchema = new mongoose.Schema({
       'job_restore',
       'job_permanent_delete',
       'goal_restore',
-      'goal_permanent_delete'
+      'goal_permanent_delete',
+      'search'
     ]
   },
   description: {
