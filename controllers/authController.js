@@ -655,3 +655,43 @@ exports.deleteUnverified = async (req, res) => {
     });
   }
 };
+
+// Check if email exists
+exports.checkEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+        alert: "Please provide an email address"
+      });
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    
+    if (existingUser) {
+      return res.status(200).json({
+        success: false,
+        exists: true,
+        message: "Email already registered",
+        alert: "This email is already registered. Please use a different email or login instead."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      exists: false,
+      message: "Email is available"
+    });
+  } catch (error) {
+    console.error('Error checking email:', error);
+    res.status(500).json({
+      success: false,
+      message: "Error checking email",
+      error: error.message,
+      alert: "Failed to check email availability. Please try again."
+    });
+  }
+};

@@ -55,4 +55,7 @@ router.get('/verify-email/:token', tokenCacheControl, authController.verifyEmail
 // Delete unverified
 router.post('/delete-unverified', authController.deleteUnverified);
 
+// Check email availability
+router.post('/check-email', ensureDBConnection, authController.checkEmail);
+
 module.exports = router;
