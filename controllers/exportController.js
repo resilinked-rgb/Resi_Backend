@@ -1,7 +1,8 @@
 const User = require('../models/User');
 const Job = require('../models/Job');
 const Rating = require('../models/Rating');
-const { generateUserReport, generateJobReport, generateCustomReport } = require('../utils/pdfGenerator');
+const Report = require('../models/Report');
+const { generateUserReport, generateJobReport, generateCustomReport, generateAnalyticsReport } = require('../utils/pdfGenerator');
 
 // Helper function to convert data to CSV format
 function convertToCSV(data, fields) {
@@ -158,6 +159,141 @@ exports.exportData = async (req, res) => {
         ];
         break;
         
+      case 'analytics':
+        // Fetch comprehensive analytics data
+        const [totalUsers, totalJobs, totalRatings, totalReports] = await Promise.all([
+          User.countDocuments(),
+          Job.countDocuments(),
+          Rating.countDocuments(),
+          Report.countDocuments()
+        ]);
+
+        // Gender distribution
+        const genderStats = await User.aggregate([
+          { $group: { _id: "$gender", count: { $sum: 1 } } },
+          { $sort: { count: -1 } }
+        ]);
+        
+        const genderDistribution = {
+          male: genderStats.find(g => g._id === 'male')?.count || 0,
+          female: genderStats.find(g => g._id === 'female')?.count || 0,
+          others: genderStats.find(g => g._id === 'others' || g._id === 'other')?.count || 0,
+          notSpecified: genderStats.find(g => !g._id || g._id === '')?.count || 0
+        };
+
+        // Popular skills
+        const skillsStats = await User.aggregate([
+          { $unwind: "$skills" },
+          { $group: { _id: "$skills", count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 }
+        ]);
+        const popularSkills = skillsStats.map(s => ({ skill: s._id, count: s.count }));
+
+        // Popular jobs
+        const popularJobs = await Job.aggregate([
+          {
+            $addFields: {
+              applicantCount: { $size: { $ifNull: ["$applicants", []] } }
+            }
+          },
+          { $sort: { applicantCount: -1 } },
+          { $limit: 5 },
+          {
+            $lookup: {
+              from: 'users',
+              localField: 'postedBy',
+              foreignField: '_id',
+              as: 'poster'
+            }
+          },
+          { $unwind: { path: '$poster', preserveNullAndEmptyArrays: true } },
+          {
+            $project: {
+              title: 1,
+              barangay: 1,
+              price: 1,
+              applicantCount: 1,
+              posterName: { $concat: ['$poster.firstName', ' ', '$poster.lastName'] }
+            }
+          }
+        ]);
+
+        // Popular barangays
+        const popularBarangays = await Job.aggregate([
+          { $group: { _id: "$barangay", count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 5 },
+          { $project: { barangay: "$_id", count: 1, _id: 0 } }
+        ]);
+
+        // Recent activity
+        const recentActivityDocs = await require('../models/Activity').find({})
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .lean();
+        const recentActivity = recentActivityDocs.map(a => ({
+          _id: a._id,
+          type: a.type.includes('job') ? 'job' : 'user',
+          description: a.description,
+          createdAt: a.createdAt
+        }));
+
+        // Job stats
+        const completedJobs = await Job.countDocuments({ completed: true });
+        const activeJobs = await Job.countDocuments({ isOpen: true, completed: false });
+        const jobPrices = await Job.find({}, 'price').lean();
+        const totalValue = jobPrices.reduce((sum, job) => sum + (job.price || 0), 0);
+        const averagePrice = jobPrices.length > 0 ? Math.round(totalValue / jobPrices.length) : 0;
+
+        // User type distribution
+        const userTypeStats = await User.aggregate([
+          { $group: { _id: "$userType", count: { $sum: 1 } } }
+        ]);
+        
+        const employeeCount = userTypeStats.find(u => u._id === 'employee')?.count || 0;
+        const employerCount = userTypeStats.find(u => u._id === 'employer')?.count || 0;
+        const bothCount = userTypeStats.find(u => u._id === 'both')?.count || 0;
+        
+        // Verified users
+        const verifiedCount = await User.countDocuments({ isVerified: true });
+
+        analytics = {
+          totalUsers,
+          totalJobs,
+          totalRatings,
+          totalReports,
+          userDistribution: {
+            employee: employeeCount,
+            employer: employerCount,
+            both: bothCount,
+            employeePercentage: totalUsers > 0 ? Math.round((employeeCount / totalUsers) * 100) : 0,
+            employerPercentage: totalUsers > 0 ? Math.round((employerCount / totalUsers) * 100) : 0,
+            bothPercentage: totalUsers > 0 ? Math.round((bothCount / totalUsers) * 100) : 0
+          },
+          genderDistribution,
+          verifiedUsers: {
+            count: verifiedCount,
+            percentage: totalUsers > 0 ? Math.round((verifiedCount / totalUsers) * 100) : 0
+          },
+          jobStats: {
+            active: activeJobs,
+            completed: completedJobs,
+            totalValue,
+            averagePrice
+          },
+          popularBarangays,
+          popularSkills,
+          popularJobs,
+          recentActivity
+        };
+
+        filename = `resilinked-analytics-${new Date().toISOString().split('T')[0]}`;
+        // Analytics only supports PDF export
+        data = null;
+        fields = null;
+        break;
+        
       default:
         return res.status(400).json({ message: "Invalid export type" });
     }
@@ -169,6 +305,11 @@ exports.exportData = async (req, res) => {
     }
     
     if (format === 'csv') {
+      // Analytics doesn't support CSV export
+      if (type === 'analytics') {
+        return res.status(400).json({ message: "Analytics export only supports PDF format" });
+      }
+      
       console.log('Generating CSV with', data.length, 'records');
       const csv = convertToCSV(data, fields);
       console.log('CSV generated, length:', csv.length);
@@ -176,7 +317,7 @@ exports.exportData = async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
       return res.send(csv);
     } else if (format === 'pdf') {
-      console.log('Generating PDF with', data.length, 'records');
+      console.log('Generating PDF with', data ? data.length : 'analytics', 'records');
       let pdfPath;
       const filterParams = { q, barangay, role, verified, status };
       
@@ -186,6 +327,9 @@ exports.exportData = async (req, res) => {
       } else if (type === 'jobs') {
         console.log('Calling generateJobReport...');
         pdfPath = await generateJobReport(data, filterParams);
+      } else if (type === 'analytics') {
+        console.log('Calling generateAnalyticsReport...');
+        pdfPath = await generateAnalyticsReport(analytics, filterParams);
       } else {
         return res.status(400).json({ message: "PDF export not available for this type" });
       }

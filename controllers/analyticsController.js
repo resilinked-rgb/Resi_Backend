@@ -12,6 +12,57 @@ exports.getDashboardStats = async (req, res) => {
       Report.countDocuments()
     ]);
 
+    // Gender distribution
+    const genderStats = await User.aggregate([
+      { $group: { _id: "$gender", count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    
+    const genderDistribution = {
+      male: genderStats.find(g => g._id === 'male')?.count || 0,
+      female: genderStats.find(g => g._id === 'female')?.count || 0,
+      others: genderStats.find(g => g._id === 'others' || g._id === 'other')?.count || 0,
+      notSpecified: genderStats.find(g => !g._id || g._id === '')?.count || 0
+    };
+
+    // Popular skills from users
+    const skillsStats = await User.aggregate([
+      { $unwind: "$skills" },
+      { $group: { _id: "$skills", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+    const popularSkills = skillsStats.map(s => ({ skill: s._id, count: s.count }));
+
+    // Popular jobs based on applicants
+    const popularJobs = await Job.aggregate([
+      {
+        $addFields: {
+          applicantCount: { $size: { $ifNull: ["$applicants", []] } }
+        }
+      },
+      { $sort: { applicantCount: -1 } },
+      { $limit: 5 },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'postedBy',
+          foreignField: '_id',
+          as: 'poster'
+        }
+      },
+      { $unwind: { path: '$poster', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          title: 1,
+          barangay: 1,
+          price: 1,
+          applicantCount: 1,
+          posterName: { $concat: ['$poster.firstName', ' ', '$poster.lastName'] }
+        }
+      }
+    ]);
+
     // Query popular barangays from jobs
     const popularBarangays = await Job.aggregate([
       { $group: { _id: "$barangay", count: { $sum: 1 } } },
@@ -39,6 +90,18 @@ exports.getDashboardStats = async (req, res) => {
     const totalValue = jobPrices.reduce((sum, job) => sum + (job.price || 0), 0);
     const averagePrice = jobPrices.length > 0 ? Math.round(totalValue / jobPrices.length) : 0;
 
+    // User type distribution
+    const userTypeStats = await User.aggregate([
+      { $group: { _id: "$userType", count: { $sum: 1 } } }
+    ]);
+    
+    const employeeCount = userTypeStats.find(u => u._id === 'employee')?.count || 0;
+    const employerCount = userTypeStats.find(u => u._id === 'employer')?.count || 0;
+    const bothCount = userTypeStats.find(u => u._id === 'both')?.count || 0;
+    
+    // Verified users count
+    const verifiedCount = await User.countDocuments({ isVerified: true });
+
     res.status(200).json({
       totalUsers,
       usersTrend: '+12% this month',
@@ -49,14 +112,17 @@ exports.getDashboardStats = async (req, res) => {
       totalReports,
       reportsTrend: '-5% this month',
       userDistribution: {
-        employee: Math.floor(totalUsers * 0.7),
-        employer: Math.floor(totalUsers * 0.3),
-        employeePercentage: 70,
-        employerPercentage: 30
+        employee: employeeCount,
+        employer: employerCount,
+        both: bothCount,
+        employeePercentage: totalUsers > 0 ? Math.round((employeeCount / totalUsers) * 100) : 0,
+        employerPercentage: totalUsers > 0 ? Math.round((employerCount / totalUsers) * 100) : 0,
+        bothPercentage: totalUsers > 0 ? Math.round((bothCount / totalUsers) * 100) : 0
       },
+      genderDistribution,
       verifiedUsers: {
-        count: Math.floor(totalUsers * 0.6),
-        percentage: 60
+        count: verifiedCount,
+        percentage: totalUsers > 0 ? Math.round((verifiedCount / totalUsers) * 100) : 0
       },
       jobStats: {
         active: activeJobs,
@@ -65,6 +131,8 @@ exports.getDashboardStats = async (req, res) => {
         averagePrice
       },
       popularBarangays,
+      popularSkills,
+      popularJobs,
       recentActivity
     });
   } catch (err) {
