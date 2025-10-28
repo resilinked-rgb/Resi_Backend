@@ -250,28 +250,39 @@ exports.updateReportStatus = async (req, res) => {
             });
         }
 
-        // Notify reporter if resolved
-        if (status === 'resolved') {
-            let reportedName;
-            if (report.reportedUser) {
-                reportedName = `${report.reportedUser.firstName} ${report.reportedUser.lastName}`;
-            } else if (report.reportedJob) {
-                reportedName = `job "${report.reportedJob.title}"`;
-            } else {
-                reportedName = "the reported item";
-            }
+        // Determine what was reported
+        let reportedName;
+        let reportedType;
+        if (report.reportedUser) {
+            reportedName = `${report.reportedUser.firstName} ${report.reportedUser.lastName}`;
+            reportedType = 'user';
+        } else if (report.reportedJob) {
+            reportedName = `job "${report.reportedJob.title}"`;
+            reportedType = 'job';
+        } else {
+            reportedName = "the reported item";
+            reportedType = 'item';
+        }
 
+        // Notify reporter about status change
+        if (status === 'resolved') {
             await createNotification({
                 recipient: report.reporter._id,
                 type: 'report_resolved',
-                message: `Your report against ${reportedName} has been resolved`
+                message: `Your report against ${reportedName} has been resolved by the admin. You may be contacted by the barangay office to settle the dispute.`
+            });
+        } else if (status === 'dismissed') {
+            await createNotification({
+                recipient: report.reporter._id,
+                type: 'report_dismissed',
+                message: `Your report against ${reportedName} has been reviewed and dismissed. If you believe this was an error, please contact the barangay office.`
             });
         }
 
         res.status(200).json({
             message: "Report status updated",
             report,
-            alert: "Report status updated"
+            alert: `Report ${status} successfully`
         });
     } catch (err) {
         res.status(500).json({
