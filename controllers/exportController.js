@@ -11,7 +11,23 @@ function convertToCSV(data, fields) {
   const rows = data.map(item => {
     return fields.map(field => {
       // Handle nested properties
-      const value = field.key.split('.').reduce((obj, key) => obj && obj[key], item);
+      let value = field.key.split('.').reduce((obj, key) => obj && obj[key], item);
+      
+      // Convert arrays to comma-separated strings
+      if (Array.isArray(value)) {
+        value = value.join('; ');
+      }
+      
+      // Handle objects
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        value = JSON.stringify(value);
+      }
+      
+      // Handle dates
+      if (value instanceof Date) {
+        value = value.toISOString();
+      }
+      
       return `"${value !== undefined && value !== null ? value.toString().replace(/"/g, '""') : ''}"`;
     }).join(',');
   });
@@ -21,238 +37,184 @@ function convertToCSV(data, fields) {
 
 exports.exportData = async (req, res) => {
   try {
+    console.log('=== EXPORT REQUEST ===');
+    console.log('Type:', req.params.type);
+    console.log('Format:', req.query.format);
+    console.log('Format type:', typeof req.query.format);
+    console.log('Query params:', req.query);
+    
     const { type } = req.params;
-    const { format = 'pdf', filters } = req.query;
+    const { format = 'csv', q, barangay, role, verified, status, sortBy = 'createdAt', order = 'desc' } = req.query;
+    
+    console.log('Parsed format variable:', format);
+    console.log('Format === "csv":', format === 'csv');
+    console.log('Format === "pdf":', format === 'pdf');
     
     let data;
     let filename;
     let fields;
-    let filterParams = {};
-    let analytics = null; // Declare analytics before the switch
-    
-    // Parse filters if provided
-    if (filters) {
-      try {
-        filterParams = JSON.parse(filters);
-      } catch (e) {
-        return res.status(400).json({ message: "Invalid filters format" });
-      }
-    }
-    
-    // Build query based on filters
     let query = {};
+    let analytics = null;
     
-  switch (type) {
+    // Build query based on URL parameters
+    switch (type) {
       case 'users':
-        // User filters
-        if (filterParams.search) {
+        // Search query
+        if (q) {
           query.$or = [
-            { firstName: new RegExp(filterParams.search, 'i') },
-            { lastName: new RegExp(filterParams.search, 'i') },
-            { email: new RegExp(filterParams.search, 'i') }
+            { firstName: new RegExp(q, 'i') },
+            { lastName: new RegExp(q, 'i') },
+            { email: new RegExp(q, 'i') }
           ];
         }
-        if (filterParams.userType) query.userType = filterParams.userType;
-        if (filterParams.barangay) query.barangay = filterParams.barangay;
-        if (filterParams.verified !== undefined) query.isVerified = filterParams.verified === 'true';
         
-        // Date filters
-        if (filterParams.startDate || filterParams.endDate) {
-          query.createdAt = {};
-          if (filterParams.startDate) query.createdAt.$gte = new Date(filterParams.startDate);
-          if (filterParams.endDate) query.createdAt.$lte = new Date(filterParams.endDate);
-        }
+        // Filters
+        if (role && role !== 'all') query.userType = role;
+        if (barangay && barangay !== 'all') query.barangay = barangay;
+        if (verified && verified !== 'all') query.isVerified = verified === 'true';
         
-        data = await User.find(query).select('-password -verificationToken -verificationExpires');
+        // Fetch data with all details including ID images
+        // Exclude heavy/unnecessary fields for export
+        data = await User.find(query)
+          .select('-password -verificationToken -verificationExpires -goals -bio -description')
+          .lean()
+          .sort({ [sortBy]: order === 'asc' ? 1 : -1 });
+        
         filename = `resilinked-users-${new Date().toISOString().split('T')[0]}`;
         fields = [
+          { key: '_id', label: 'User ID' },
           { key: 'firstName', label: 'First Name' },
           { key: 'lastName', label: 'Last Name' },
           { key: 'email', label: 'Email' },
           { key: 'mobileNo', label: 'Mobile Number' },
           { key: 'userType', label: 'User Type' },
           { key: 'barangay', label: 'Barangay' },
+          { key: 'address', label: 'Address' },
+          { key: 'gender', label: 'Gender' },
           { key: 'isVerified', label: 'Verified' },
+          { key: 'idType', label: 'ID Type' },
+          { key: 'idNumber', label: 'ID Number' },
+          { key: 'profilePicture', label: 'Profile Picture URL' },
+          { key: 'idFrontImage', label: 'ID Front URL' },
+          { key: 'idBackImage', label: 'ID Back URL' },
+          { key: 'barangayClearanceImage', label: 'Barangay Clearance URL' },
+          { key: 'skills', label: 'Skills' },
           { key: 'createdAt', label: 'Registration Date' }
         ];
         break;
         
       case 'jobs':
-        // Job filters
-        if (filterParams.search) {
+        // Search query
+        if (q) {
           query.$or = [
-            { title: new RegExp(filterParams.search, 'i') },
-            { description: new RegExp(filterParams.search, 'i') },
-            { barangay: new RegExp(filterParams.search, 'i') }
+            { title: new RegExp(q, 'i') },
+            { description: new RegExp(q, 'i') },
+            { barangay: new RegExp(q, 'i') }
           ];
         }
-        if (filterParams.status) query.status = filterParams.status;
-        if (filterParams.barangay) query.barangay = filterParams.barangay;
-        if (filterParams.minPrice || filterParams.maxPrice) {
-          query.price = {};
-          if (filterParams.minPrice) query.price.$gte = parseFloat(filterParams.minPrice);
-          if (filterParams.maxPrice) query.price.$lte = parseFloat(filterParams.maxPrice);
+        
+        // Filters
+        if (barangay && barangay !== 'all') query.barangay = barangay;
+        if (status && status !== 'all') {
+          if (status === 'open') query.isOpen = true;
+          else if (status === 'closed') { query.isOpen = false; query.isCompleted = { $ne: true }; }
+          else if (status === 'completed') query.isCompleted = true;
         }
         
-        // Date filters
-        if (filterParams.startDate || filterParams.endDate) {
-          query.createdAt = {};
-          if (filterParams.startDate) query.createdAt.$gte = new Date(filterParams.startDate);
-          if (filterParams.endDate) query.createdAt.$lte = new Date(filterParams.endDate);
-        }
+        // Fetch data with employer, employee, and all job details
+        data = await Job.find(query)
+          .populate('postedBy', 'firstName lastName email mobileNo barangay profilePicture validId')
+          .populate('assignedTo', 'firstName lastName email mobileNo barangay profilePicture validId skills')
+          .populate('applicants.user', 'firstName lastName email')
+          .sort({ [sortBy]: order === 'asc' ? 1 : -1 });
         
-        data = await Job.find(query).populate('postedBy', 'firstName lastName email');
         filename = `resilinked-jobs-${new Date().toISOString().split('T')[0]}`;
         fields = [
+          { key: '_id', label: 'Job ID' },
           { key: 'title', label: 'Job Title' },
           { key: 'description', label: 'Description' },
-          { key: 'price', label: 'Price' },
+          { key: 'price', label: 'Price (PHP)' },
           { key: 'barangay', label: 'Barangay' },
-          { key: 'status', label: 'Status' },
-          { key: 'postedBy.firstName', label: 'Posted By First Name' },
-          { key: 'postedBy.lastName', label: 'Posted By Last Name' },
-          { key: 'createdAt', label: 'Posted Date' }
+          { key: 'location', label: 'Location' },
+          { key: 'skillsRequired', label: 'Skills Required' },
+          { key: 'isOpen', label: 'Is Open' },
+          { key: 'isCompleted', label: 'Is Completed' },
+          { key: 'completed', label: 'Completed' },
+          { key: 'postedBy.firstName', label: 'Employer First Name' },
+          { key: 'postedBy.lastName', label: 'Employer Last Name' },
+          { key: 'postedBy.email', label: 'Employer Email' },
+          { key: 'postedBy.mobileNo', label: 'Employer Phone' },
+          { key: 'postedBy.barangay', label: 'Employer Location' },
+          { key: 'assignedTo.firstName', label: 'Employee First Name' },
+          { key: 'assignedTo.lastName', label: 'Employee Last Name' },
+          { key: 'assignedTo.email', label: 'Employee Email' },
+          { key: 'assignedTo.mobileNo', label: 'Employee Phone' },
+          { key: 'assignedTo.skills', label: 'Employee Skills' },
+          { key: 'applicants.length', label: 'Number of Applicants' },
+          { key: 'paymentProof', label: 'Payment Proof URL' },
+          { key: 'completedAt', label: 'Completed Date' },
+          { key: 'datePosted', label: 'Date Posted' },
+          { key: 'createdAt', label: 'Created Date' }
         ];
         break;
         
-      case 'ratings':
-        // Rating filters
-        if (filterParams.minRating || filterParams.maxRating) {
-          query.rating = {};
-          if (filterParams.minRating) query.rating.$gte = parseInt(filterParams.minRating);
-          if (filterParams.maxRating) query.rating.$lte = parseInt(filterParams.maxRating);
-        }
-        
-        // Date filters
-        if (filterParams.startDate || filterParams.endDate) {
-          query.createdAt = {};
-          if (filterParams.startDate) query.createdAt.$gte = new Date(filterParams.startDate);
-          if (filterParams.endDate) query.createdAt.$lte = new Date(filterParams.endDate);
-        }
-        
-        data = await Rating.find(query)
-          .populate('rater', 'firstName lastName')
-          .populate('ratee', 'firstName lastName');
-        filename = `resilinked-ratings-${new Date().toISOString().split('T')[0]}`;
-        fields = [
-          { key: 'rating', label: 'Rating' },
-          { key: 'comment', label: 'Comment' },
-          { key: 'rater.firstName', label: 'Rater First Name' },
-          { key: 'rater.lastName', label: 'Rater Last Name' },
-          { key: 'ratee.firstName', label: 'Rated User First Name' },
-          { key: 'ratee.lastName', label: 'Rated User Last Name' },
-          { key: 'createdAt', label: 'Rating Date' }
-        ];
-        break;
-        
-      case 'analytics':
-        // Gather analytics data
-        const [
-          totalUsers,
-          totalJobs,
-          totalRatings,
-          totalReports
-        ] = await Promise.all([
-          User.countDocuments(),
-          Job.countDocuments(),
-          Rating.countDocuments(),
-          require('../models/Report').countDocuments()
-        ]);
-
-        // User distribution
-        const userDistribution = {
-          employee: await User.countDocuments({ userType: 'employee' }),
-          employer: await User.countDocuments({ userType: 'employer' })
-        };
-        userDistribution.employeePercentage = totalUsers ? (userDistribution.employee / totalUsers) * 100 : 0;
-        userDistribution.employerPercentage = totalUsers ? (userDistribution.employer / totalUsers) * 100 : 0;
-
-        // Job stats
-        const jobStats = {
-          active: await Job.countDocuments({ status: 'open' }),
-          completed: await Job.countDocuments({ status: 'completed' }),
-          totalValue: (await Job.aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }]))[0]?.total || 0,
-          averagePrice: (await Job.aggregate([{ $group: { _id: null, avg: { $avg: "$price" } } }]))[0]?.avg || 0
-        };
-
-        // Popular barangays
-        const popularBarangays = await Job.aggregate([
-          { $group: { _id: "$barangay", count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-          { $limit: 5 },
-          { $project: { barangay: "$_id", count: 1, _id: 0 } }
-        ]);
-
-        // Recent activity (last 6 jobs or users)
-        const recentJobs = await Job.find().sort({ createdAt: -1 }).limit(3);
-        const recentUsers = await User.find().sort({ createdAt: -1 }).limit(3);
-        const recentActivity = [
-          ...recentJobs.map(j => ({ type: 'job', description: `Job posted: ${j.title}`, createdAt: j.createdAt })),
-          ...recentUsers.map(u => ({ type: 'user', description: `User registered: ${u.firstName} ${u.lastName}`, createdAt: u.createdAt }))
-        ].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6);
-
-        // System performance (mocked for now)
-        const performance = {
-          responseTime: '142ms',
-          uptime: '99.8%',
-          errorRate: '0.2%',
-          activeSessions: 23
-        };
-
-      analytics = {
-          totalUsers,
-          totalJobs,
-          totalRatings,
-          totalReports,
-          userDistribution,
-          jobStats,
-          popularBarangays,
-          recentActivity,
-          performance
-        };
-
-        filename = `resilinked-analytics-${new Date().toISOString().split('T')[0]}`;
-        break;
       default:
         return res.status(400).json({ message: "Invalid export type" });
     }
     
-    // Add filter info to filename
-    if (Object.keys(filterParams).length > 0) {
+    // Add filter info to filename if filters applied
+    const filterApplied = q || barangay !== 'all' || role !== 'all' || verified !== 'all' || status !== 'all';
+    if (filterApplied) {
       filename += '-filtered';
     }
     
     if (format === 'csv') {
-      if (type === 'analytics') {
-        return res.status(400).json({ message: "CSV export not available for analytics" });
-      }
+      console.log('Generating CSV with', data.length, 'records');
       const csv = convertToCSV(data, fields);
+      console.log('CSV generated, length:', csv.length);
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
       return res.send(csv);
     } else if (format === 'pdf') {
+      console.log('Generating PDF with', data.length, 'records');
       let pdfPath;
+      const filterParams = { q, barangay, role, verified, status };
+      
       if (type === 'users') {
+        console.log('Calling generateUserReport...');
         pdfPath = await generateUserReport(data, filterParams);
       } else if (type === 'jobs') {
+        console.log('Calling generateJobReport...');
         pdfPath = await generateJobReport(data, filterParams);
-      } else if (type === 'ratings') {
-        pdfPath = await generateCustomReport(data, `${type.toUpperCase()} REPORT`, fields, filterParams);
-      } else if (type === 'analytics') {
-        pdfPath = await require('../utils/pdfGenerator').generateAnalyticsReport(analytics, filterParams);
       } else {
         return res.status(400).json({ message: "PDF export not available for this type" });
       }
+      
+      console.log('PDF generated at:', pdfPath);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
-      return res.download(pdfPath, () => {
+      return res.download(pdfPath, `${filename}.pdf`, (err) => {
+        if (err) {
+          console.error('Error sending PDF:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ message: 'Error downloading PDF', error: err.message });
+          }
+        } else {
+          console.log('PDF sent successfully to client');
+        }
         // Clean up the temporary file
-        require('fs').unlinkSync(pdfPath);
+        try {
+          require('fs').unlinkSync(pdfPath);
+          console.log('Cleaned up temp PDF:', pdfPath);
+        } catch (cleanupErr) {
+          console.error('Error deleting temp PDF:', cleanupErr);
+        }
       });
     } else {
       return res.status(400).json({ message: "Unsupported format" });
     }
   } catch (err) {
+    console.error('Export error:', err);
     res.status(500).json({
       message: "Error exporting data",
       error: err.message

@@ -127,11 +127,6 @@ function generateAnalyticsReport(analytics, filters = {}) {
         resolve(filepath);
       });
       stream.on('error', reject);
-
-      stream.on('finish', () => {
-        resolve(filepath);
-      });
-      stream.on('error', reject);
     } catch (error) {
       reject(error);
     }
@@ -144,7 +139,19 @@ const path = require('path');
 function generateUserReport(users, filters = {}) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50 });
+      console.log('generateUserReport: Starting with', users.length, 'users');
+      
+      // Safety check - limit to reasonable number of users
+      if (users.length > 100) {
+        console.warn('WARNING: Attempting to generate PDF with', users.length, 'users. Limiting to first 100.');
+        users = users.slice(0, 100);
+      }
+      
+      const doc = new PDFDocument({ 
+        margin: 50,
+        bufferPages: true,
+        compress: true  // Enable compression
+      });
       const filename = `user-report-${Date.now()}.pdf`;
       const filepath = path.join(__dirname, '..', 'temp', filename);
       
@@ -154,8 +161,10 @@ function generateUserReport(users, filters = {}) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
       
-      doc.pipe(fs.createWriteStream(filepath));
+      const stream = fs.createWriteStream(filepath);
+      doc.pipe(stream);
       
+      console.log('generateUserReport: Adding header...');
       // Add logo and header
       addReportHeader(doc, 'USER MANAGEMENT REPORT');
       
@@ -165,19 +174,29 @@ function generateUserReport(users, filters = {}) {
       // Summary statistics
       addSummarySection(doc, users, 'Users');
       
-      // User details table
+      console.log('generateUserReport: Adding user table...');
+      // User details table (with image links)
       addUserTable(doc, users);
       
+      console.log('generateUserReport: Adding footer...');
       // Add footer
       addReportFooter(doc);
       
+      console.log('generateUserReport: Ending document...');
       doc.end();
       
-      doc.on('end', () => {
+      stream.on('finish', () => {
+        console.log('generateUserReport: PDF finished writing to', filepath);
         resolve(filepath);
       });
       
+      stream.on('error', (err) => {
+        console.error('generateUserReport: Stream error:', err);
+        reject(err);
+      });
+      
     } catch (error) {
+      console.error('generateUserReport: Caught error:', error);
       reject(error);
     }
   });
@@ -186,6 +205,7 @@ function generateUserReport(users, filters = {}) {
 function generateJobReport(jobs, filters = {}) {
   return new Promise((resolve, reject) => {
     try {
+      console.log('generateJobReport: Starting with', jobs.length, 'jobs');
       const doc = new PDFDocument({ margin: 50 });
       const filename = `job-report-${Date.now()}.pdf`;
       const filepath = path.join(__dirname, '..', 'temp', filename);
@@ -195,8 +215,10 @@ function generateJobReport(jobs, filters = {}) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
       
-      doc.pipe(fs.createWriteStream(filepath));
+      const stream = fs.createWriteStream(filepath);
+      doc.pipe(stream);
       
+      console.log('generateJobReport: Adding header...');
       // Add logo and header
       addReportHeader(doc, 'JOB MANAGEMENT REPORT');
       
@@ -206,25 +228,33 @@ function generateJobReport(jobs, filters = {}) {
       // Summary statistics
       addSummarySection(doc, jobs, 'Jobs');
       
-      // Job details table
+      console.log('generateJobReport: Adding job table...');
+      // Job details table (with image links and payment proof)
       addJobTable(doc, jobs);
       
+      console.log('generateJobReport: Adding footer...');
       // Add footer
       addReportFooter(doc);
       
+      console.log('generateJobReport: Ending document...');
       doc.end();
       
-      doc.on('end', () => {
+      stream.on('finish', () => {
+        console.log('generateJobReport: PDF finished writing to', filepath);
         resolve(filepath);
       });
       
+      stream.on('error', (err) => {
+        console.error('generateJobReport: Stream error:', err);
+        reject(err);
+      });
+      
     } catch (error) {
+      console.error('generateJobReport: Caught error:', error);
       reject(error);
     }
   });
-}
-
-function generateCustomReport(data, title, fields, filters = {}) {
+}function generateCustomReport(data, title, fields, filters = {}) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ margin: 50 });
@@ -236,7 +266,8 @@ function generateCustomReport(data, title, fields, filters = {}) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
       
-      doc.pipe(fs.createWriteStream(filepath));
+      const stream = fs.createWriteStream(filepath);
+      doc.pipe(stream);
       
       // Add logo and header
       addReportHeader(doc, title);
@@ -255,9 +286,11 @@ function generateCustomReport(data, title, fields, filters = {}) {
       
       doc.end();
       
-      doc.on('end', () => {
+      stream.on('finish', () => {
         resolve(filepath);
       });
+      
+      stream.on('error', reject);
       
     } catch (error) {
       reject(error);
@@ -334,22 +367,22 @@ function addSummarySection(doc, data, dataType) {
     const both = data.filter(u => u.userType === 'both').length;
     
     summaryText = `Total ${dataType}: ${total}\n` +
-                 `Verified: ${verified} (${Math.round((verified / total) * 100)}%)\n` +
+                 `Verified: ${verified} (${total > 0 ? Math.round((verified / total) * 100) : 0}%)\n` +
                  `Employees: ${employees}\n` +
                  `Employers: ${employers}\n` +
                  `Both: ${both}`;
   } else if (dataType === 'Jobs') {
     const total = data.length;
-    const open = data.filter(j => j.status === 'open').length;
-    const assigned = data.filter(j => j.status === 'assigned').length;
-    const completed = data.filter(j => j.status === 'completed').length;
-    const cancelled = data.filter(j => j.status === 'cancelled').length;
+    const open = data.filter(j => j.isOpen === true).length;
+    const closed = data.filter(j => j.isOpen === false && !j.isCompleted && !j.completed).length;
+    const completed = data.filter(j => j.isCompleted === true || j.completed === true).length;
+    const withWorker = data.filter(j => j.assignedTo).length;
     
     summaryText = `Total ${dataType}: ${total}\n` +
                  `Open: ${open}\n` +
-                 `Assigned: ${assigned}\n` +
+                 `Closed: ${closed}\n` +
                  `Completed: ${completed}\n` +
-                 `Cancelled: ${cancelled}`;
+                 `With Assigned Worker: ${withWorker}`;
   } else {
     summaryText = `Total ${dataType}: ${data.length}`;
   }
@@ -359,124 +392,246 @@ function addSummarySection(doc, data, dataType) {
 }
 
 function addUserTable(doc, users) {
-  doc.fontSize(12).font('Helvetica-Bold').text('USER DETAILS:', 50, doc.y);
-  doc.y += 20;
+  console.log('addUserTable: Processing', users.length, 'users');
+  doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('USER PROFILES', 50, doc.y);
+  doc.moveDown(1);
   
-  const tableTop = doc.y;
-  const leftMargin = 50;
-  const colWidths = [80, 100, 120, 80, 60, 60];
-  
-  // Table headers
-  doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Name', leftMargin, tableTop);
-  doc.text('Email', leftMargin + colWidths[0], tableTop);
-  doc.text('Contact', leftMargin + colWidths[0] + colWidths[1], tableTop);
-  doc.text('Type', leftMargin + colWidths[0] + colWidths[1] + colWidths[2], tableTop);
-  doc.text('Barangay', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], tableTop);
-  doc.text('Status', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], tableTop);
-  
-  let y = tableTop + 20;
-  
-  // Horizontal line
-  doc.moveTo(leftMargin, y - 5).lineTo(leftMargin + colWidths.reduce((a, b) => a + b, 0), y - 5).stroke();
-  
-  // Table rows
-  doc.font('Helvetica');
-  users.forEach((user, i) => {
-    if (y > 700) { // Add new page if needed
+  users.forEach((user, index) => {
+    if (index % 10 === 0) {
+      console.log(`addUserTable: Processing user ${index + 1}/${users.length}`);
+    }
+    
+    // Check if need new page - fixed card height of 280
+    if (doc.y > 500) {
       doc.addPage();
-      y = 50;
-      // Add headers again on new page
-      doc.font('Helvetica-Bold');
-      doc.text('Name', leftMargin, y);
-      doc.text('Email', leftMargin + colWidths[0], y);
-      doc.text('Contact', leftMargin + colWidths[0] + colWidths[1], y);
-      doc.text('Type', leftMargin + colWidths[0] + colWidths[1] + colWidths[2], y);
-      doc.text('Barangay', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], y);
-      doc.text('Status', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], y);
-      y += 20;
-      doc.font('Helvetica');
     }
     
-    doc.fontSize(8).text(`${user.firstName} ${user.lastName}`, leftMargin, y);
-    doc.text(user.email, leftMargin + colWidths[0], y);
-    doc.text(user.mobileNo || 'N/A', leftMargin + colWidths[0] + colWidths[1], y);
-    doc.text(user.userType, leftMargin + colWidths[0] + colWidths[1] + colWidths[2], y);
-    doc.text(user.barangay || 'N/A', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], y);
-    doc.text(user.isVerified ? 'Verified' : 'Unverified', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], y);
+    const cardTop = doc.y;
+    const cardLeft = 50;
+    const cardWidth = 500;
+    const cardHeight = 280; // Fixed height for consistency
     
-    y += 15;
+    // Header Section
+    doc.rect(cardLeft, cardTop, cardWidth, 35).fillAndStroke('#2b6cb0', '#2b6cb0');
     
-    // Add horizontal line every 5 rows for better readability
-    if (i % 5 === 4) {
-      doc.moveTo(leftMargin, y - 2).lineTo(leftMargin + colWidths.reduce((a, b) => a + b, 0), y - 2).stroke();
-      y += 5;
+    // User name and number in header
+    doc.fontSize(13).font('Helvetica-Bold').fillColor('#ffffff');
+    doc.text(`${user.firstName} ${user.lastName}`, cardLeft + 15, cardTop + 10);
+    doc.fontSize(9).font('Helvetica').fillColor('#e0e0e0');
+    doc.text(`User #${index + 1} | ${user.userType.toUpperCase()}`, cardLeft + cardWidth - 150, cardTop + 12);
+    
+    doc.fillColor('#000');
+    let currentY = cardTop + 45;
+    
+    const infoLeft = cardLeft + 20;
+    const lineHeight = 14;
+    
+    // === PERSONAL INFORMATION ===
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+    doc.text('PERSONAL INFORMATION', cardLeft + 15, currentY);
+    currentY += 18;
+    
+    doc.fontSize(9).font('Helvetica').fillColor('#333');
+    
+    doc.font('Helvetica-Bold').text('Name:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.firstName} ${user.lastName}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Email:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.email}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Mobile:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.mobileNo || 'N/A'}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Barangay:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.barangay || 'N/A'}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Gender:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.gender || 'N/A'}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Verification:', infoLeft, currentY, { continued: true });
+    doc.fillColor(user.isVerified ? '#10b981' : '#ef4444');
+    doc.font('Helvetica-Bold').text(` ${user.isVerified ? '✓ VERIFIED' : '✗ UNVERIFIED'}`);
+    doc.fillColor('#333');
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Joined:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${new Date(user.createdAt).toLocaleDateString()}`);
+    currentY += 20;
+    
+    // === IDENTIFICATION ===
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+    doc.text('IDENTIFICATION', cardLeft + 15, currentY);
+    currentY += 18;
+    
+    doc.fontSize(9).font('Helvetica').fillColor('#333');
+    
+    doc.font('Helvetica-Bold').text('ID Type:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.idType || 'N/A'}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('ID Number:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${user.idNumber || 'N/A'}`);
+    currentY += 18;
+    
+    // Display image availability
+    doc.fontSize(8).font('Helvetica').fillColor('#666');
+    const docs = [];
+    if (user.profilePicture) docs.push('Profile');
+    if (user.idFrontImage) docs.push('ID Front');
+    if (user.idBackImage) docs.push('ID Back');
+    if (user.barangayClearanceImage) docs.push('Brgy Clearance');
+    
+    if (docs.length > 0) {
+      doc.text('Documents: ' + docs.join(' • '), infoLeft, currentY);
+      currentY += 15;
     }
+    doc.fillColor('#333');
+    
+    // === SKILLS ===
+    if (user.skills && user.skills.length > 0) {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+      doc.text('SKILLS', cardLeft + 15, currentY);
+      currentY += 15;
+      
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      const skillsText = user.skills.slice(0, 5).join(', '); // Limit to 5 skills
+      doc.text(skillsText, infoLeft, currentY, { width: 470 });
+    }
+    
+    // Draw card border - fixed height
+    doc.rect(cardLeft, cardTop, cardWidth, cardHeight).stroke('#d0d0d0');
+    
+    // Move to next card position
+    doc.y = cardTop + cardHeight + 15;
   });
+  
+  console.log('addUserTable: Completed processing all users');
 }
 
 function addJobTable(doc, jobs) {
-  doc.fontSize(12).font('Helvetica-Bold').text('JOB DETAILS:', 50, doc.y);
-  doc.y += 20;
+  console.log('addJobTable: Processing', jobs.length, 'jobs');
+  doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('JOB LISTINGS', 50, doc.y);
+  doc.moveDown(1);
   
-  const tableTop = doc.y;
-  const leftMargin = 50;
-  const colWidths = [100, 120, 60, 80, 80, 60];
-  
-  // Table headers
-  doc.fontSize(10).font('Helvetica-Bold');
-  doc.text('Title', leftMargin, tableTop);
-  doc.text('Description', leftMargin + colWidths[0], tableTop);
-  doc.text('Price', leftMargin + colWidths[0] + colWidths[1], tableTop);
-  doc.text('Barangay', leftMargin + colWidths[0] + colWidths[1] + colWidths[2], tableTop);
-  doc.text('Posted By', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], tableTop);
-  doc.text('Status', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], tableTop);
-  
-  let y = tableTop + 20;
-  
-  // Horizontal line
-  doc.moveTo(leftMargin, y - 5).lineTo(leftMargin + colWidths.reduce((a, b) => a + b, 0), y - 5).stroke();
-  
-  // Table rows
-  doc.font('Helvetica');
-  jobs.forEach((job, i) => {
-    if (y > 700) { // Add new page if needed
+  jobs.forEach((job, index) => {
+    if (index % 10 === 0) {
+      console.log(`addJobTable: Processing job ${index + 1}/${jobs.length}`);
+    }
+    
+    // Check if need new page - fixed card height of 330
+    if (doc.y > 460) {
       doc.addPage();
-      y = 50;
-      // Add headers again on new page
-      doc.font('Helvetica-Bold');
-      doc.text('Title', leftMargin, y);
-      doc.text('Description', leftMargin + colWidths[0], y);
-      doc.text('Price', leftMargin + colWidths[0] + colWidths[1], y);
-      doc.text('Barangay', leftMargin + colWidths[0] + colWidths[1] + colWidths[2], y);
-      doc.text('Posted By', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], y);
-      doc.text('Status', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], y);
-      y += 20;
-      doc.font('Helvetica');
     }
     
-    const description = job.description && job.description.length > 30 
-      ? job.description.substring(0, 30) + '...' 
-      : job.description || 'N/A';
+    const cardTop = doc.y;
+    const cardLeft = 50;
+    const cardWidth = 500;
+    const cardHeight = 330; // Fixed height for consistency
     
-    const postedBy = job.postedBy 
-      ? `${job.postedBy.firstName} ${job.postedBy.lastName}` 
-      : 'Unknown';
+    // Header Section with status color
+    const statusColor = job.isCompleted || job.completed ? '#10b981' : job.isOpen ? '#3b82f6' : '#6b7280';
+    doc.rect(cardLeft, cardTop, cardWidth, 35).fillAndStroke(statusColor, statusColor);
     
-    doc.fontSize(8).text(job.title, leftMargin, y);
-    doc.text(description, leftMargin + colWidths[0], y);
-    doc.text(`₱${job.price}`, leftMargin + colWidths[0] + colWidths[1], y);
-    doc.text(job.barangay || 'N/A', leftMargin + colWidths[0] + colWidths[1] + colWidths[2], y);
-    doc.text(postedBy, leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], y);
-    doc.text(job.status || 'Unknown', leftMargin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + colWidths[4], y);
+    // Job title in header
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#ffffff');
+    const titleText = job.title && job.title.length > 50 ? job.title.substring(0, 50) + '...' : job.title || 'Untitled Job';
+    doc.text(titleText, cardLeft + 15, cardTop + 10, { width: 380 });
+    doc.fontSize(9).font('Helvetica').fillColor('#e0e0e0');
+    const statusText = job.isCompleted || job.completed ? 'COMPLETED' : job.isOpen ? 'OPEN' : 'CLOSED';
+    doc.text(statusText, cardLeft + cardWidth - 100, cardTop + 12);
     
-    y += 15;
+    doc.fillColor('#000');
+    let currentY = cardTop + 45;
     
-    // Add horizontal line every 5 rows for better readability
-    if (i % 5 === 4) {
-      doc.moveTo(leftMargin, y - 2).lineTo(leftMargin + colWidths.reduce((a, b) => a + b, 0), y - 2).stroke();
-      y += 5;
+    const infoLeft = cardLeft + 20;
+    const lineHeight = 14;
+    
+    // === JOB DETAILS ===
+    doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+    doc.text('JOB DETAILS', cardLeft + 15, currentY);
+    currentY += 18;
+    
+    doc.fontSize(9).font('Helvetica').fillColor('#333');
+    
+    doc.font('Helvetica-Bold').text('Price:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').fillColor('#10b981');
+    doc.text(` ₱${job.price?.toLocaleString() || '0'}`);
+    doc.fillColor('#333');
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Barangay:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${job.barangay || 'N/A'}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Posted:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${new Date(job.datePosted || job.createdAt).toLocaleDateString()}`);
+    currentY += lineHeight;
+    
+    doc.font('Helvetica-Bold').text('Applicants:', infoLeft, currentY, { continued: true });
+    doc.font('Helvetica').text(` ${job.applicants?.length || 0}`);
+    currentY += 20;
+    
+    // === DESCRIPTION ===
+    if (job.description) {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+      doc.text('DESCRIPTION', cardLeft + 15, currentY);
+      currentY += 15;
+      
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      const descText = job.description.length > 180 ? job.description.substring(0, 180) + '...' : job.description;
+      doc.text(descText, infoLeft, currentY, { width: 470 });
+      currentY += 30; // Fixed space
     }
+    
+    // === REQUIRED SKILLS ===
+    if (job.skillsRequired && job.skillsRequired.length > 0) {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+      doc.text('REQUIRED SKILLS', cardLeft + 15, currentY);
+      currentY += 15;
+      
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      const skillsText = job.skillsRequired.slice(0, 5).join(' • '); // Limit to 5 skills
+      doc.text(skillsText, infoLeft, currentY, { width: 470 });
+      currentY += 20;
+    }
+    
+    // === EMPLOYER ===
+    if (job.postedBy) {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#2b6cb0');
+      doc.text('EMPLOYER', cardLeft + 15, currentY);
+      currentY += 15;
+      
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      doc.text(`${job.postedBy.firstName} ${job.postedBy.lastName} • ${job.postedBy.email}`, infoLeft, currentY);
+      currentY += 12;
+      doc.text(`Mobile: ${job.postedBy.mobileNo || 'N/A'} • Location: ${job.postedBy.barangay || 'N/A'}`, infoLeft, currentY);
+      currentY += 20;
+    }
+    
+    // === ASSIGNED EMPLOYEE ===
+    if (job.assignedTo) {
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#10b981');
+      doc.text('✓ ASSIGNED EMPLOYEE', cardLeft + 15, currentY);
+      currentY += 15;
+      
+      doc.fontSize(8).font('Helvetica').fillColor('#333');
+      doc.text(`${job.assignedTo.firstName} ${job.assignedTo.lastName} • ${job.assignedTo.email}`, infoLeft, currentY);
+      currentY += 12;
+      if (job.assignedTo.skills && job.assignedTo.skills.length > 0) {
+        doc.text(`Skills: ${job.assignedTo.skills.slice(0, 3).join(', ')}`, infoLeft, currentY);
+      }
+    }
+    
+    // Draw card border - fixed height
+    doc.rect(cardLeft, cardTop, cardWidth, cardHeight).stroke('#d0d0d0');
+    
+    // Move to next card position
+    doc.y = cardTop + cardHeight + 15;
   });
 }
 

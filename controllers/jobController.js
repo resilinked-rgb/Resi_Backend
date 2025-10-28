@@ -331,8 +331,17 @@ exports.applyJob = async (req, res) => {
             });
         }
 
-        const alreadyApplied = job.applicants.some(a => a.user.toString() === req.user.id);
-        if (alreadyApplied) {
+        // Check if user has already applied (including rejected applications)
+        const existingApplication = job.applicants.find(a => a.user.toString() === req.user.id);
+        
+        if (existingApplication) {
+            if (existingApplication.status === 'rejected') {
+                return res.status(400).json({ 
+                    message: "Application was rejected",
+                    alert: "Your application to this job was rejected. You cannot reapply."
+                });
+            }
+            
             return res.status(400).json({ 
                 message: "Already applied",
                 alert: "You've already applied to this job"
