@@ -20,31 +20,25 @@ function generateAnalyticsReport(analytics, filters = {}) {
 
       // Add generation date
       doc.fontSize(9).font('Helvetica').fillColor('#666');
-      doc.text(`Report Generated: ${new Date().toLocaleString()}`, 50, doc.y, { align: 'right' });
-      doc.moveDown(0.5);
-
-      // Add filter information if any
-      if (filters && Object.keys(filters).length > 0) {
-        addFilterSection(doc, filters);
-      }
+      doc.text(`Report Generated: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`, 50, doc.y, { align: 'right' });
+      doc.moveDown(1);
 
       // Helper function for section dividers
       function sectionDivider() {
-        doc.moveDown(0.8);
-        doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor('#2b6cb0').lineWidth(2).stroke();
         doc.moveDown(1);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor('#2b6cb0').lineWidth(2).stroke();
+        doc.moveDown(0.8);
       }
 
-      // Helper function for subsection headers
-      function subsectionHeader(title) {
-        doc.fontSize(11).font('Helvetica-Bold').fillColor('#2b6cb0').text(title, { align: 'left' });
-        doc.moveDown(0.3);
+      // Helper function for card backgrounds
+      function drawCard(x, y, width, height, fillColor = '#f8f9fa') {
+        doc.rect(x, y, width, height).fillAndStroke(fillColor, '#ddd');
       }
 
       // === KEY PERFORMANCE INDICATORS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('KEY PERFORMANCE INDICATORS', { align: 'left' });
-      doc.moveDown(0.5);
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('KEY PERFORMANCE INDICATORS', 50, doc.y);
+      doc.moveDown(1);
       
       if (analytics) {
         const kpis = [
@@ -54,191 +48,249 @@ function generateAnalyticsReport(analytics, filters = {}) {
           { label: 'Total Reports', value: analytics.totalReports || 0 },
         ];
         
-        const startX = 70, startY = doc.y, colW = 110, rowH = 45;
+        const startX = 65, startY = doc.y, colW = 115, rowH = 55, gap = 5;
         kpis.forEach((kpi, i) => {
-          // Card background
-          doc.rect(startX + i * colW, startY, colW - 5, rowH).fillAndStroke('#f0f7ff', '#2b6cb0');
+          const x = startX + (i * (colW + gap));
+          // Card background with border
+          doc.rect(x, startY, colW, rowH).fillAndStroke('#f0f7ff', '#2b6cb0');
           
           // Label
-          doc.font('Helvetica').fontSize(9).fillColor('#555').text(kpi.label, startX + i * colW + 8, startY + 12, { width: colW - 16, align: 'center' });
+          doc.font('Helvetica-Bold').fontSize(10).fillColor('#666')
+            .text(kpi.label, x + 5, startY + 10, { width: colW - 10, align: 'center' });
           
           // Value
-          doc.font('Helvetica-Bold').fontSize(16).fillColor('#2b6cb0').text(kpi.value.toLocaleString(), startX + i * colW + 8, startY + 25, { width: colW - 16, align: 'center' });
+          doc.font('Helvetica-Bold').fontSize(20).fillColor('#2b6cb0')
+            .text(kpi.value.toLocaleString(), x + 5, startY + 28, { width: colW - 10, align: 'center' });
         });
-        doc.y = startY + rowH + 15;
+        doc.y = startY + rowH + 20;
       }
 
       // === USER ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('USER ANALYTICS', { align: 'left' });
-      doc.moveDown(0.8);
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('USER ANALYTICS', 50, doc.y);
+      doc.moveDown(1.2);
 
-      // User Type Distribution
+      // User Type Distribution Box
       if (analytics?.userDistribution) {
-        subsectionHeader('User Type Distribution');
-        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        const boxY = doc.y;
+        drawCard(65, boxY, 235, 100);
+        
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('User Type Distribution', 75, boxY + 10);
+        doc.moveDown(0.5);
         
         const dist = analytics.userDistribution;
-        const userTypes = [
-          { label: 'Employees', count: dist.employee || 0, percent: dist.employeePercentage || 0, color: '#3b82f6' },
-          { label: 'Employers', count: dist.employer || 0, percent: dist.employerPercentage || 0, color: '#10b981' },
-          { label: 'Both', count: dist.both || 0, percent: dist.bothPercentage || 0, color: '#f59e0b' }
-        ];
-
-        let startX = 70;
-        userTypes.forEach((type, i) => {
-          doc.fontSize(10).font('Helvetica-Bold').fillColor(type.color);
-          doc.text(`${type.label}:`, startX + i * 150, doc.y, { continued: true });
-          doc.font('Helvetica').fillColor('#333');
-          doc.text(` ${type.count.toLocaleString()} (${type.percent}%)`);
-        });
-        doc.moveDown(1);
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
+        doc.text(`Employees:`, 75, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${dist.employee || 0} (${dist.employeePercentage || 0}%)`);
+        
+        doc.font('Helvetica').fillColor('#333');
+        doc.text(`Employers:`, 75, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${dist.employer || 0} (${dist.employerPercentage || 0}%)`);
+        
+        doc.font('Helvetica').fillColor('#333');
+        doc.text(`Both:`, 75, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').fillColor('#f59e0b').text(` ${dist.both || 0} (${dist.bothPercentage || 0}%)`);
+        
+        doc.y = boxY;
       }
 
-      // Gender Distribution
+      // Gender Distribution Box
       if (analytics?.genderDistribution) {
-        subsectionHeader('Gender Distribution');
-        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        const boxY = doc.y;
+        drawCard(310, boxY, 235, 100);
+        
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Gender Distribution', 320, boxY + 10);
+        doc.moveDown(0.5);
         
         const gender = analytics.genderDistribution;
         const total = analytics.totalUsers || 1;
-        const genders = [
-          { label: 'Male', count: gender.male || 0 },
-          { label: 'Female', count: gender.female || 0 },
-          { label: 'Others', count: gender.others || 0 },
-          { label: 'Not Specified', count: gender.notSpecified || 0 }
-        ];
-
-        genders.forEach((g, i) => {
-          const percent = total > 0 ? Math.round((g.count / total) * 100) : 0;
-          doc.fontSize(10).font('Helvetica');
-          doc.text(`${g.label}:`, 70 + (i % 2) * 250, doc.y, { continued: true });
-          doc.font('Helvetica-Bold').text(` ${g.count.toLocaleString()} (${percent}%)`);
-          if (i % 2 === 1) doc.moveDown(0.3);
-        });
-        doc.moveDown(1.2);
+        
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
+        const malePercent = total > 0 ? Math.round((gender.male / total) * 100) : 0;
+        doc.text(`Male:`, 320, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').text(` ${gender.male || 0} (${malePercent}%)`);
+        
+        doc.font('Helvetica').fillColor('#333');
+        const femalePercent = total > 0 ? Math.round((gender.female / total) * 100) : 0;
+        doc.text(`Female:`, 320, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').text(` ${gender.female || 0} (${femalePercent}%)`);
+        
+        doc.font('Helvetica').fillColor('#333');
+        const othersPercent = total > 0 ? Math.round((gender.others / total) * 100) : 0;
+        doc.text(`Others:`, 320, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').text(` ${gender.others || 0} (${othersPercent}%)`);
+        
+        doc.y = boxY + 110;
       }
 
-      // Verified Users
+      // Verification Status Box
       if (analytics?.verifiedUsers) {
-        subsectionHeader('User Verification Status');
-        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        const boxY = doc.y;
+        drawCard(65, boxY, 480, 55);
+        
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('User Verification Status', 75, boxY + 10);
+        doc.moveDown(0.5);
         
         const verified = analytics.verifiedUsers;
-        doc.text('Verified Users:', 70, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`);
-        
         const unverified = (analytics.totalUsers || 0) - (verified.count || 0);
         const unverifiedPercent = 100 - (verified.percentage || 0);
-        doc.font('Helvetica').fillColor('#333');
-        doc.text('Unverified Users:', 70, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#ef4444').text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`);
-        doc.moveDown(1);
+        
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
+        doc.text(`Verified:`, 75, doc.y, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').fillColor('#10b981')
+          .text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`, { continued: true });
+        
+        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
+        doc.text(`Unverified:`, { continued: true, width: 100 });
+        doc.font('Helvetica-Bold').fillColor('#ef4444')
+          .text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`);
+        
+        doc.y = boxY + 65;
       }
 
       // === JOB ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('JOB ANALYTICS', { align: 'left' });
-      doc.moveDown(0.8);
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('JOB ANALYTICS', 50, doc.y);
+      doc.moveDown(1.2);
 
-      // Job Statistics
+      // Job Statistics Box
       if (analytics?.jobStats) {
-        subsectionHeader('Job Statistics');
-        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        const boxY = doc.y;
+        drawCard(65, boxY, 480, 80);
         
-        const js = analytics.jobStats;
-        doc.text('Active Jobs:', 70, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`);
-        
-        doc.font('Helvetica').fillColor('#333');
-        doc.text('Completed Jobs:', 300, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${js.completed?.toLocaleString() || 0}`);
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Job Statistics', 75, boxY + 10);
         doc.moveDown(0.5);
         
-        doc.font('Helvetica').fillColor('#333');
-        doc.text('Total Value:', 70, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`);
+        const js = analytics.jobStats;
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
         
+        // First row
+        doc.text(`Active Jobs:`, 75, doc.y, { continued: true, width: 120 });
+        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`, { continued: true });
+        
+        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
+        doc.text(`Completed Jobs:`, { continued: true, width: 130 });
+        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${js.completed?.toLocaleString() || 0}`);
+        
+        doc.moveDown(0.5);
+        
+        // Second row
         doc.font('Helvetica').fillColor('#333');
-        doc.text('Average Price:', 300, doc.y, { continued: true });
+        doc.text(`Total Value:`, 75, doc.y, { continued: true, width: 120 });
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`, { continued: true });
+        
+        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
+        doc.text(`Average Price:`, { continued: true, width: 130 });
         doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.averagePrice?.toLocaleString() || 0}`);
-        doc.moveDown(1.5);
+        
+        doc.y = boxY + 90;
       }
 
       // Popular Jobs
       if (analytics?.popularJobs && analytics.popularJobs.length > 0) {
-        subsectionHeader('Top 5 Popular Jobs (By Applicants)');
-        doc.fontSize(10).font('Helvetica').fillColor('#333');
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Top 5 Popular Jobs (By Applicants)', 65, doc.y);
+        doc.moveDown(0.8);
         
         analytics.popularJobs.forEach((job, i) => {
-          doc.font('Helvetica-Bold').text(`${i + 1}. ${job.title || 'Untitled'}`, 70, doc.y);
-          doc.font('Helvetica').fontSize(9).fillColor('#666');
-          doc.text(`   Location: ${job.barangay || 'N/A'} | Price: P${job.price?.toLocaleString() || 0} | Applicants: ${job.applicantCount}`, 70, doc.y);
-          doc.fontSize(10).fillColor('#333');
-          doc.moveDown(0.3);
+          const jobY = doc.y;
+          drawCard(75, jobY, 460, 45);
+          
+          doc.font('Helvetica-Bold').fontSize(11).fillColor('#333')
+            .text(`${i + 1}. ${job.title || 'Untitled'}`, 85, jobY + 10);
+          
+          doc.font('Helvetica').fontSize(10).fillColor('#666')
+            .text(`Location: ${job.barangay || 'N/A'}`, 85, jobY + 25, { continued: true });
+          doc.text(`  |  Price: PHP ${job.price?.toLocaleString() || 0}`, { continued: true });
+          doc.text(`  |  Applicants: ${job.applicantCount}`, { continued: false });
+          
+          doc.y = jobY + 50;
         });
-        doc.moveDown(0.8);
+        doc.moveDown(0.5);
       }
 
       // === LOCATION ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('LOCATION ANALYTICS', { align: 'left' });
-      doc.moveDown(0.8);
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('LOCATION ANALYTICS', 50, doc.y);
+      doc.moveDown(1.2);
 
       // Popular Barangays
       if (analytics?.popularBarangays && analytics.popularBarangays.length > 0) {
-        subsectionHeader('Top 5 Popular Barangays');
-        doc.fontSize(10).font('Helvetica').fillColor('#333');
+        const boxY = doc.y;
+        drawCard(65, boxY, 480, 100);
         
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Top 5 Popular Barangays', 75, boxY + 10);
+        doc.moveDown(0.5);
+        
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
         analytics.popularBarangays.forEach((item, i) => {
-          doc.text(`${i + 1}. ${item.barangay || 'N/A'}:`, 70, doc.y, { continued: true });
-          doc.font('Helvetica-Bold').text(` ${item.count} jobs`);
-          doc.font('Helvetica');
+          doc.text(`${i + 1}. ${item.barangay || 'N/A'}`, 85, doc.y, { continued: true, width: 300 });
+          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` ${item.count} jobs`, { align: 'left' });
+          doc.font('Helvetica').fillColor('#333');
         });
-        doc.moveDown(1.5);
+        
+        doc.y = boxY + 110;
       }
 
       // === SKILLS ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('SKILLS ANALYTICS', { align: 'left' });
-      doc.moveDown(0.8);
+      doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('SKILLS ANALYTICS', 50, doc.y);
+      doc.moveDown(1.2);
 
-      // Popular Skills
+      // Popular Skills in a grid
       if (analytics?.popularSkills && analytics.popularSkills.length > 0) {
-        subsectionHeader('Top 10 In-Demand Skills');
-        doc.fontSize(10).font('Helvetica').fillColor('#333');
+        const boxY = doc.y;
+        drawCard(65, boxY, 480, 130);
         
-        // Display in 2 columns
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Top 10 In-Demand Skills', 75, boxY + 10);
+        doc.moveDown(0.5);
+        
+        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        
         analytics.popularSkills.forEach((skill, i) => {
-          const xPos = i % 2 === 0 ? 70 : 320;
-          const yPos = doc.y;
+          const col = i % 2;
+          const row = Math.floor(i / 2);
+          const x = 85 + (col * 230);
+          const y = boxY + 30 + (row * 18);
           
-          doc.text(`${i + 1}. ${skill.skill}:`, xPos, yPos, { continued: true });
-          doc.font('Helvetica-Bold').text(` ${skill.count} users`);
-          doc.font('Helvetica');
-          
-          if (i % 2 === 1 || i === analytics.popularSkills.length - 1) {
-            doc.moveDown(0.3);
-          }
+          doc.text(`${i + 1}. ${skill.skill}`, x, y, { continued: true, width: 150 });
+          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` ${skill.count} users`);
+          doc.font('Helvetica').fillColor('#333');
         });
-        doc.moveDown(1);
+        
+        doc.y = boxY + 140;
       }
 
       // === RECENT ACTIVITY ===
       if (analytics?.recentActivity && analytics.recentActivity.length > 0) {
         sectionDivider();
-        doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('RECENT ACTIVITY', { align: 'left' });
-        doc.moveDown(0.8);
+        doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('RECENT ACTIVITY', 50, doc.y);
+        doc.moveDown(1.2);
+        
+        const boxY = doc.y;
+        const activityHeight = Math.min(analytics.recentActivity.length * 35 + 30, 250);
+        drawCard(65, boxY, 480, activityHeight);
         
         doc.fontSize(10).font('Helvetica').fillColor('#333');
+        let currentY = boxY + 15;
+        
         analytics.recentActivity.slice(0, 8).forEach((activity, i) => {
           const date = new Date(activity.createdAt).toLocaleDateString();
           const time = new Date(activity.createdAt).toLocaleTimeString();
-          const typeIcon = activity.type === 'user' ? '[User]' : '[Job]';
-          doc.text(`${typeIcon} ${activity.description}`, 70, doc.y);
-          doc.fontSize(9).fillColor('#666').text(`  ${date} at ${time}`, 70, doc.y);
+          const typeTag = activity.type === 'user' ? '[User]' : '[Job]';
+          
+          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(typeTag, 75, currentY, { continued: true });
+          doc.font('Helvetica').fillColor('#333').text(` ${activity.description}`, { continued: false });
+          currentY += 12;
+          doc.fontSize(9).fillColor('#999').text(`${date} at ${time}`, 85, currentY);
+          currentY += 23;
           doc.fontSize(10).fillColor('#333');
-          doc.moveDown(0.2);
         });
       }
 
