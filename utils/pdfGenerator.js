@@ -68,230 +68,240 @@ function generateAnalyticsReport(analytics, filters = {}) {
       // === USER ANALYTICS ===
       sectionDivider();
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('USER ANALYTICS', 50, doc.y);
-      doc.moveDown(1.2);
+      doc.moveDown(1);
 
       // User Type Distribution Box
       if (analytics?.userDistribution) {
         const boxY = doc.y;
-        drawCard(65, boxY, 235, 100);
+        drawCard(65, boxY, 480, 95);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('User Type Distribution', 75, boxY + 10);
-        doc.moveDown(0.5);
+          .text('User Type Distribution', 75, boxY + 12);
         
         const dist = analytics.userDistribution;
         doc.font('Helvetica').fontSize(11).fillColor('#333');
-        doc.text(`Employees:`, 75, doc.y, { continued: true, width: 100 });
+        
+        doc.text(`Employees:`, 85, boxY + 32, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${dist.employee || 0} (${dist.employeePercentage || 0}%)`);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Employers:`, 75, doc.y, { continued: true, width: 100 });
+        doc.text(`Employers:`, 85, boxY + 50, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${dist.employer || 0} (${dist.employerPercentage || 0}%)`);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Both:`, 75, doc.y, { continued: true, width: 100 });
+        doc.text(`Both:`, 85, boxY + 68, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#f59e0b').text(` ${dist.both || 0} (${dist.bothPercentage || 0}%)`);
         
-        doc.y = boxY;
+        doc.y = boxY + 105;
       }
 
       // Gender Distribution Box
       if (analytics?.genderDistribution) {
         const boxY = doc.y;
-        drawCard(310, boxY, 235, 100);
+        drawCard(65, boxY, 480, 115);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('Gender Distribution', 320, boxY + 10);
-        doc.moveDown(0.5);
+          .text('Gender Distribution', 75, boxY + 12);
         
         const gender = analytics.genderDistribution;
         const total = analytics.totalUsers || 1;
         
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         const malePercent = total > 0 ? Math.round((gender.male / total) * 100) : 0;
-        doc.text(`Male:`, 320, doc.y, { continued: true, width: 100 });
+        doc.text(`Male:`, 85, boxY + 32, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').text(` ${gender.male || 0} (${malePercent}%)`);
         
         doc.font('Helvetica').fillColor('#333');
         const femalePercent = total > 0 ? Math.round((gender.female / total) * 100) : 0;
-        doc.text(`Female:`, 320, doc.y, { continued: true, width: 100 });
+        doc.text(`Female:`, 85, boxY + 50, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').text(` ${gender.female || 0} (${femalePercent}%)`);
         
         doc.font('Helvetica').fillColor('#333');
         const othersPercent = total > 0 ? Math.round((gender.others / total) * 100) : 0;
-        doc.text(`Others:`, 320, doc.y, { continued: true, width: 100 });
+        doc.text(`Others:`, 85, boxY + 68, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').text(` ${gender.others || 0} (${othersPercent}%)`);
         
-        doc.y = boxY + 110;
+        doc.font('Helvetica').fillColor('#333');
+        const notSpecPercent = total > 0 ? Math.round((gender.notSpecified / total) * 100) : 0;
+        doc.text(`Not Specified:`, 85, boxY + 86, { continued: true, width: 120 });
+        doc.font('Helvetica-Bold').text(` ${gender.notSpecified || 0} (${notSpecPercent}%)`);
+        
+        doc.y = boxY + 125;
       }
 
       // Verification Status Box
       if (analytics?.verifiedUsers) {
         const boxY = doc.y;
-        drawCard(65, boxY, 480, 55);
+        drawCard(65, boxY, 480, 75);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('User Verification Status', 75, boxY + 10);
-        doc.moveDown(0.5);
+          .text('User Verification Status', 75, boxY + 12);
         
         const verified = analytics.verifiedUsers;
         const unverified = (analytics.totalUsers || 0) - (verified.count || 0);
         const unverifiedPercent = 100 - (verified.percentage || 0);
         
         doc.font('Helvetica').fontSize(11).fillColor('#333');
-        doc.text(`Verified:`, 75, doc.y, { continued: true, width: 100 });
+        doc.text(`Verified:`, 85, boxY + 32, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#10b981')
-          .text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`, { continued: true });
+          .text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`);
         
-        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
-        doc.text(`Unverified:`, { continued: true, width: 100 });
+        doc.font('Helvetica').fillColor('#333');
+        doc.text(`Unverified:`, 85, boxY + 50, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#ef4444')
           .text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`);
         
-        doc.y = boxY + 65;
+        doc.y = boxY + 85;
       }
 
       // === JOB ANALYTICS ===
       sectionDivider();
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('JOB ANALYTICS', 50, doc.y);
-      doc.moveDown(1.2);
+      doc.moveDown(1);
 
       // Job Statistics Box
       if (analytics?.jobStats) {
         const boxY = doc.y;
-        drawCard(65, boxY, 480, 80);
+        drawCard(65, boxY, 480, 115);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('Job Statistics', 75, boxY + 10);
-        doc.moveDown(0.5);
+          .text('Job Statistics', 75, boxY + 12);
         
         const js = analytics.jobStats;
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         
-        // First row
-        doc.text(`Active Jobs:`, 75, doc.y, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`, { continued: true });
+        doc.text(`Active Jobs:`, 85, boxY + 32, { continued: true, width: 120 });
+        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`);
         
-        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
-        doc.text(`Completed Jobs:`, { continued: true, width: 130 });
+        doc.font('Helvetica').fillColor('#333');
+        doc.text(`Completed Jobs:`, 85, boxY + 50, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${js.completed?.toLocaleString() || 0}`);
         
-        doc.moveDown(0.5);
-        
-        // Second row
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Total Value:`, 75, doc.y, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`, { continued: true });
+        doc.text(`Total Value:`, 85, boxY + 68, { continued: true, width: 120 });
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`);
         
-        doc.font('Helvetica').fillColor('#333').text('   |   ', { continued: true });
-        doc.text(`Average Price:`, { continued: true, width: 130 });
+        doc.font('Helvetica').fillColor('#333');
+        doc.text(`Average Price:`, 85, boxY + 86, { continued: true, width: 120 });
         doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.averagePrice?.toLocaleString() || 0}`);
         
-        doc.y = boxY + 90;
+        doc.y = boxY + 125;
       }
 
       // Popular Jobs
       if (analytics?.popularJobs && analytics.popularJobs.length > 0) {
-        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('Top 5 Popular Jobs (By Applicants)', 65, doc.y);
-        doc.moveDown(0.8);
+        const boxY = doc.y;
+        const jobsHeight = (analytics.popularJobs.length * 52) + 30;
+        drawCard(65, boxY, 480, jobsHeight);
         
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Top 5 Popular Jobs (By Applicants)', 75, boxY + 12);
+        
+        let currentY = boxY + 35;
         analytics.popularJobs.forEach((job, i) => {
-          const jobY = doc.y;
-          drawCard(75, jobY, 460, 45);
-          
           doc.font('Helvetica-Bold').fontSize(11).fillColor('#333')
-            .text(`${i + 1}. ${job.title || 'Untitled'}`, 85, jobY + 10);
+            .text(`${i + 1}. ${job.title || 'Untitled'}`, 85, currentY);
           
+          currentY += 15;
           doc.font('Helvetica').fontSize(10).fillColor('#666')
-            .text(`Location: ${job.barangay || 'N/A'}`, 85, jobY + 25, { continued: true });
-          doc.text(`  |  Price: PHP ${job.price?.toLocaleString() || 0}`, { continued: true });
-          doc.text(`  |  Applicants: ${job.applicantCount}`, { continued: false });
+            .text(`Location: ${job.barangay || 'N/A'}`, 95, currentY);
           
-          doc.y = jobY + 50;
+          currentY += 12;
+          doc.text(`Price: PHP ${job.price?.toLocaleString() || 0}  |  Applicants: ${job.applicantCount}`, 95, currentY);
+          
+          currentY += 25;
         });
-        doc.moveDown(0.5);
+        
+        doc.y = boxY + jobsHeight + 10;
       }
 
       // === LOCATION ANALYTICS ===
       sectionDivider();
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('LOCATION ANALYTICS', 50, doc.y);
-      doc.moveDown(1.2);
+      doc.moveDown(1);
 
       // Popular Barangays
       if (analytics?.popularBarangays && analytics.popularBarangays.length > 0) {
         const boxY = doc.y;
-        drawCard(65, boxY, 480, 100);
+        const barangaysHeight = (analytics.popularBarangays.length * 18) + 45;
+        drawCard(65, boxY, 480, barangaysHeight);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('Top 5 Popular Barangays', 75, boxY + 10);
-        doc.moveDown(0.5);
+          .text('Top 5 Popular Barangays', 75, boxY + 12);
         
+        let currentY = boxY + 35;
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         analytics.popularBarangays.forEach((item, i) => {
-          doc.text(`${i + 1}. ${item.barangay || 'N/A'}`, 85, doc.y, { continued: true, width: 300 });
-          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` ${item.count} jobs`, { align: 'left' });
+          doc.text(`${i + 1}. ${item.barangay || 'N/A'}`, 85, currentY, { continued: true, width: 300 });
+          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` - ${item.count} jobs`);
           doc.font('Helvetica').fillColor('#333');
+          currentY += 18;
         });
         
-        doc.y = boxY + 110;
+        doc.y = boxY + barangaysHeight + 10;
       }
 
       // === SKILLS ANALYTICS ===
       sectionDivider();
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('SKILLS ANALYTICS', 50, doc.y);
-      doc.moveDown(1.2);
+      doc.moveDown(1);
 
-      // Popular Skills in a grid
+      // Popular Skills in vertical list
       if (analytics?.popularSkills && analytics.popularSkills.length > 0) {
         const boxY = doc.y;
-        drawCard(65, boxY, 480, 130);
+        const skillsHeight = (analytics.popularSkills.length * 18) + 45;
+        drawCard(65, boxY, 480, skillsHeight);
         
         doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
-          .text('Top 10 In-Demand Skills', 75, boxY + 10);
-        doc.moveDown(0.5);
+          .text('Top 10 In-Demand Skills', 75, boxY + 12);
         
-        doc.font('Helvetica').fontSize(10).fillColor('#333');
+        let currentY = boxY + 35;
+        doc.font('Helvetica').fontSize(11).fillColor('#333');
         
         analytics.popularSkills.forEach((skill, i) => {
-          const col = i % 2;
-          const row = Math.floor(i / 2);
-          const x = 85 + (col * 230);
-          const y = boxY + 30 + (row * 18);
-          
-          doc.text(`${i + 1}. ${skill.skill}`, x, y, { continued: true, width: 150 });
-          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` ${skill.count} users`);
+          doc.text(`${i + 1}. ${skill.skill}`, 85, currentY, { continued: true, width: 300 });
+          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(` - ${skill.count} users`);
           doc.font('Helvetica').fillColor('#333');
+          currentY += 18;
         });
         
-        doc.y = boxY + 140;
+        doc.y = boxY + skillsHeight + 10;
       }
 
       // === RECENT ACTIVITY ===
       if (analytics?.recentActivity && analytics.recentActivity.length > 0) {
         sectionDivider();
         doc.fontSize(16).font('Helvetica-Bold').fillColor('#2b6cb0').text('RECENT ACTIVITY', 50, doc.y);
-        doc.moveDown(1.2);
+        doc.moveDown(1);
         
         const boxY = doc.y;
-        const activityHeight = Math.min(analytics.recentActivity.length * 35 + 30, 250);
+        const activityCount = Math.min(analytics.recentActivity.length, 8);
+        const activityHeight = (activityCount * 35) + 40;
         drawCard(65, boxY, 480, activityHeight);
         
-        doc.fontSize(10).font('Helvetica').fillColor('#333');
-        let currentY = boxY + 15;
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#2b6cb0')
+          .text('Recent System Activity', 75, boxY + 12);
+        
+        let currentY = boxY + 35;
         
         analytics.recentActivity.slice(0, 8).forEach((activity, i) => {
           const date = new Date(activity.createdAt).toLocaleDateString();
           const time = new Date(activity.createdAt).toLocaleTimeString();
           const typeTag = activity.type === 'user' ? '[User]' : '[Job]';
           
-          doc.font('Helvetica-Bold').fillColor('#2b6cb0').text(typeTag, 75, currentY, { continued: true });
-          doc.font('Helvetica').fillColor('#333').text(` ${activity.description}`, { continued: false });
-          currentY += 12;
-          doc.fontSize(9).fillColor('#999').text(`${date} at ${time}`, 85, currentY);
-          currentY += 23;
-          doc.fontSize(10).fillColor('#333');
+          doc.font('Helvetica-Bold').fontSize(10).fillColor('#2b6cb0')
+            .text(typeTag, 85, currentY, { continued: true });
+          doc.font('Helvetica').fillColor('#333')
+            .text(` ${activity.description}`, { continued: false });
+          
+          currentY += 13;
+          doc.fontSize(9).fillColor('#999')
+            .text(`${date} at ${time}`, 95, currentY);
+          
+          currentY += 22;
         });
+        
+        doc.y = boxY + activityHeight + 10;
       }
 
       // Add footer
