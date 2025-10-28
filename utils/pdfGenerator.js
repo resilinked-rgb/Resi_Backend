@@ -81,16 +81,16 @@ function generateAnalyticsReport(analytics, filters = {}) {
         const dist = analytics.userDistribution;
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         
-        doc.text(`Employees:`, 85, boxY + 32, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${dist.employee || 0} (${dist.employeePercentage || 0}%)`);
+        doc.text(`Employees:`, 85, boxY + 32, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${dist.employee || 0} (${dist.employeePercentage || 0}%)`, 200, boxY + 32);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Employers:`, 85, boxY + 50, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${dist.employer || 0} (${dist.employerPercentage || 0}%)`);
+        doc.text(`Employers:`, 85, boxY + 50, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${dist.employer || 0} (${dist.employerPercentage || 0}%)`, 200, boxY + 50);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Both:`, 85, boxY + 68, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#f59e0b').text(` ${dist.both || 0} (${dist.bothPercentage || 0}%)`);
+        doc.text(`Both:`, 85, boxY + 68, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#f59e0b').text(` ${dist.both || 0} (${dist.bothPercentage || 0}%)`, 200, boxY + 68);
         
         doc.y = boxY + 105;
       }
@@ -108,23 +108,23 @@ function generateAnalyticsReport(analytics, filters = {}) {
         
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         const malePercent = total > 0 ? Math.round((gender.male / total) * 100) : 0;
-        doc.text(`Male:`, 85, boxY + 32, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').text(` ${gender.male || 0} (${malePercent}%)`);
+        doc.text(`Male:`, 85, boxY + 32, { continued: false });
+        doc.font('Helvetica-Bold').text(` ${gender.male || 0} (${malePercent}%)`, 200, boxY + 32);
         
         doc.font('Helvetica').fillColor('#333');
         const femalePercent = total > 0 ? Math.round((gender.female / total) * 100) : 0;
-        doc.text(`Female:`, 85, boxY + 50, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').text(` ${gender.female || 0} (${femalePercent}%)`);
+        doc.text(`Female:`, 85, boxY + 50, { continued: false });
+        doc.font('Helvetica-Bold').text(` ${gender.female || 0} (${femalePercent}%)`, 200, boxY + 50);
         
         doc.font('Helvetica').fillColor('#333');
         const othersPercent = total > 0 ? Math.round((gender.others / total) * 100) : 0;
-        doc.text(`Others:`, 85, boxY + 68, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').text(` ${gender.others || 0} (${othersPercent}%)`);
+        doc.text(`Others:`, 85, boxY + 68, { continued: false });
+        doc.font('Helvetica-Bold').text(` ${gender.others || 0} (${othersPercent}%)`, 200, boxY + 68);
         
         doc.font('Helvetica').fillColor('#333');
         const notSpecPercent = total > 0 ? Math.round((gender.notSpecified / total) * 100) : 0;
-        doc.text(`Not Specified:`, 85, boxY + 86, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').text(` ${gender.notSpecified || 0} (${notSpecPercent}%)`);
+        doc.text(`Not Specified:`, 85, boxY + 86, { continued: false });
+        doc.font('Helvetica-Bold').text(` ${gender.notSpecified || 0} (${notSpecPercent}%)`, 200, boxY + 86);
         
         doc.y = boxY + 125;
       }
@@ -142,14 +142,14 @@ function generateAnalyticsReport(analytics, filters = {}) {
         const unverifiedPercent = 100 - (verified.percentage || 0);
         
         doc.font('Helvetica').fontSize(11).fillColor('#333');
-        doc.text(`Verified:`, 85, boxY + 32, { continued: true, width: 120 });
+        doc.text(`Verified:`, 85, boxY + 32, { continued: false });
         doc.font('Helvetica-Bold').fillColor('#10b981')
-          .text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`);
+          .text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`, 200, boxY + 32);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Unverified:`, 85, boxY + 50, { continued: true, width: 120 });
+        doc.text(`Unverified:`, 85, boxY + 50, { continued: false });
         doc.font('Helvetica-Bold').fillColor('#ef4444')
-          .text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`);
+          .text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`, 200, boxY + 50);
         
         doc.y = boxY + 85;
       }
@@ -170,20 +170,20 @@ function generateAnalyticsReport(analytics, filters = {}) {
         const js = analytics.jobStats;
         doc.font('Helvetica').fontSize(11).fillColor('#333');
         
-        doc.text(`Active Jobs:`, 85, boxY + 32, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`);
+        doc.text(`Active Jobs:`, 85, boxY + 32, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#3b82f6').text(` ${js.active?.toLocaleString() || 0}`, 200, boxY + 32);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Completed Jobs:`, 85, boxY + 50, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${js.completed?.toLocaleString() || 0}`);
+        doc.text(`Completed Jobs:`, 85, boxY + 50, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${js.completed?.toLocaleString() || 0}`, 200, boxY + 50);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Total Value:`, 85, boxY + 68, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`);
+        doc.text(`Total Value:`, 85, boxY + 68, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`, 200, boxY + 68);
         
         doc.font('Helvetica').fillColor('#333');
-        doc.text(`Average Price:`, 85, boxY + 86, { continued: true, width: 120 });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.averagePrice?.toLocaleString() || 0}`);
+        doc.text(`Average Price:`, 85, boxY + 86, { continued: false });
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.averagePrice?.toLocaleString() || 0}`, 200, boxY + 86);
         
         doc.y = boxY + 125;
       }
