@@ -833,6 +833,7 @@ exports.closeJob = async (req, res) => {
 exports.completeJob = async (req, res) => {
     try {
         console.log('completeJob called for job ID:', req.params.id);
+        console.log('Payment proof file:', req.file);
         
         const job = await Job.findById(req.params.id)
             .populate('postedBy', 'firstName lastName')
@@ -871,12 +872,21 @@ exports.completeJob = async (req, res) => {
                 alert: "This job has already been marked as completed"
             });
         }
+
+        // Check if payment proof was uploaded
+        if (!req.file) {
+            return res.status(400).json({
+                message: "Payment proof required",
+                alert: "Please upload an image or receipt showing proof of payment to the worker"
+            });
+        }
         
-        // Mark job as completed
+        // Mark job as completed and save payment proof
         job.completed = true;
         job.completedAt = new Date();
         job.isOpen = false;
         job.status = 'completed';
+        job.paymentProof = req.file.path; // Cloudinary URL
         await job.save();
         
         // Add the job income to the worker's active goal
@@ -886,11 +896,19 @@ exports.completeJob = async (req, res) => {
         // Call the addIncomeToActiveGoal function from goalController
         const updatedGoal = await addIncomeToActiveGoal(workerId, jobIncome, job._id);
         
-        // Create notifications
+        // Create notification for the worker
         await createNotification({
             recipient: workerId,
             type: 'job_completed',
-            message: `Job "${job.title}" has been marked as completed`,
+            message: `Job "${job.title}" has been marked as completed by ${job.postedBy.firstName}`,
+            relatedJob: job._id
+        });
+
+        // Create notification for the employer
+        await createNotification({
+            recipient: jobPostedById,
+            type: 'job_completed',
+            message: `You have successfully completed the job "${job.title}" with ${job.assignedTo.firstName} ${job.assignedTo.lastName}`,
             relatedJob: job._id
         });
         
@@ -921,7 +939,8 @@ exports.completeJob = async (req, res) => {
                 title: job.title,
                 worker: job.assignedTo ? `${job.assignedTo.firstName} ${job.assignedTo.lastName}` : 'Unknown',
                 employer: job.postedBy ? `${job.postedBy.firstName} ${job.postedBy.lastName}` : 'Unknown',
-                income: jobIncome
+                income: jobIncome,
+                paymentProof: job.paymentProof
             },
             goalUpdated: !!updatedGoal,
             goal: updatedGoal,

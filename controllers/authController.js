@@ -39,6 +39,17 @@ exports.register = async (req, res) => {
             });
         }
 
+        // Validate required file uploads
+        const requiredFiles = ['idFrontImage', 'idBackImage', 'barangayClearanceImage'];
+        const missingFiles = requiredFiles.filter(file => !req.files || !req.files[file] || !req.files[file][0]);
+        if (missingFiles.length > 0) {
+            return res.status(400).json({
+                message: "Missing required file uploads",
+                missingFiles,
+                alert: "Please upload all required documents (ID front, ID back, and Barangay Clearance)"
+            });
+        }
+
         const existingUser = await User.findOne({ email: req.body.email });
         if (existingUser) {
             return res.status(400).json({
@@ -54,6 +65,7 @@ exports.register = async (req, res) => {
         let profilePicture = '';
         let idFrontImage = '';
         let idBackImage = '';
+        let barangayClearanceImage = '';
         
         if (req.files) {
             // Cloudinary middleware stores files and provides the URL in file.path
@@ -68,6 +80,10 @@ exports.register = async (req, res) => {
             if (req.files.idBackImage && req.files.idBackImage[0]) {
                 idBackImage = req.files.idBackImage[0].path; // Cloudinary URL
             }
+
+            if (req.files.barangayClearanceImage && req.files.barangayClearanceImage[0]) {
+                barangayClearanceImage = req.files.barangayClearanceImage[0].path; // Cloudinary URL
+            }
         }
 
         const user = new User({
@@ -76,6 +92,7 @@ exports.register = async (req, res) => {
             profilePicture,
             idFrontImage,
             idBackImage,
+            barangayClearanceImage,
             isVerified: false,
             verificationToken,
             verificationExpires: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
@@ -96,10 +113,14 @@ exports.register = async (req, res) => {
         });
 
         // Try to send verification email but don't block registration if it fails
+        console.log(`📧 Attempting to send verification email to: ${user.email}`);
+        console.log(`🔑 Verification token: ${verificationToken}`);
+        
         try {
             await sendVerificationEmail(user.email, verificationToken);
-            // Verification email sent successfully
+            console.log(`✅ Verification email sent successfully to: ${user.email}`);
         } catch (emailError) {
+            console.error(`❌ Failed to send verification email during registration:`, emailError.message);
             // Continue registration process despite email failure
         }
 
@@ -509,7 +530,21 @@ exports.resendVerification = async (req, res) => {
             await user.save();
         }
 
-        await sendVerificationEmail(user.email, user.verificationToken);
+        console.log(`📧 Attempting to send verification email to: ${user.email}`);
+        console.log(`🔑 Verification token: ${user.verificationToken}`);
+        
+        try {
+            await sendVerificationEmail(user.email, user.verificationToken);
+            console.log(`✅ Verification email sent successfully to: ${user.email}`);
+        } catch (emailError) {
+            console.error(`❌ Failed to send verification email:`, emailError.message);
+            return res.status(500).json({
+                success: false,
+                message: "Failed to send verification email",
+                alert: "Email service error. Please try again later or contact support.",
+                error: emailError.message
+            });
+        }
 
         // ✅ LOG ACTIVITY: Verification email resent
         await createActivityLog({

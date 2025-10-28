@@ -62,7 +62,8 @@ const uploadRegistration = multer({
 }).fields([
   { name: 'profilePicture', maxCount: 1 },
   { name: 'idFrontImage', maxCount: 1 },
-  { name: 'idBackImage', maxCount: 1 }
+  { name: 'idBackImage', maxCount: 1 },
+  { name: 'barangayClearanceImage', maxCount: 1 }
 ]);
 
 // Multer upload middleware for profile updates (profile picture only)
@@ -81,6 +82,40 @@ const uploadProfilePicture = multer({
     }
   }
 }).single('profilePicture');
+
+// Storage configuration for payment receipts
+const paymentReceiptStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'resilinked/payment-receipts',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+    transformation: [
+      { width: 1200, height: 1200, crop: 'limit' },
+      { quality: 'auto' }
+    ],
+    public_id: (req, file) => {
+      const jobId = req.params.id || Date.now();
+      return `payment-${jobId}-${Date.now()}`;
+    }
+  }
+});
+
+// Multer upload middleware for payment proof
+const uploadPaymentProof = multer({
+  storage: paymentReceiptStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, WebP, and PDF are allowed.'));
+    }
+  }
+}).single('paymentProof');
 
 // Helper function to delete old images from Cloudinary
 const deleteFromCloudinary = async (imageUrl) => {
@@ -107,6 +142,7 @@ const deleteFromCloudinary = async (imageUrl) => {
 module.exports = {
   uploadRegistration,
   uploadProfilePicture,
+  uploadPaymentProof,
   deleteFromCloudinary,
   cloudinary
 };

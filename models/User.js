@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
     idNumber: { type: String, required: true },
     idFrontImage: { type: String },
     idBackImage: { type: String },
+    barangayClearanceImage: { type: String },
 
     // Skills Information
     skills: [{ type: String }],

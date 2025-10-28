@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jobController = require('../controllers/jobController');
 const auth = require('../middleware/auth');
+const { uploadPaymentProof } = require('../middleware/cloudinaryUpload');
 
 // Jobs
 router.post('/', auth.verify, jobController.postJob);
@@ -24,7 +25,7 @@ router.post('/:id/accept-invitation', auth.verify, jobController.acceptInvitatio
 router.post('/:id/decline-invitation', auth.verify, jobController.declineInvitation);
 router.put('/:jobId/applicants/:userId', auth.verify, jobController.updateApplicantStatus);
 router.put('/:id/close', auth.verify, jobController.closeJob);
-router.put('/:id/complete', auth.verify, jobController.completeJob);
+router.put('/:id/complete', auth.verify, uploadPaymentProof, jobController.completeJob);
 router.put('/:id', auth.verify, jobController.editJob);
 router.delete('/:id', auth.verify, jobController.deleteJob);
 // Generic /:id route MUST be last to avoid catching specific routes
