@@ -173,17 +173,17 @@ exports.getTopRated = async (req, res) => {
       {
         $addFields: {
           averageRating: { $avg: '$ratings.rating' },
-          ratingCount: { $size: '$ratings' }
+          totalRatings: { $size: '$ratings' }
         }
       },
       {
         $match: {
-          ratingCount: { $gt: 0 },
+          totalRatings: { $gt: 0 },
           userType: { $in: ['employee', 'both'] }
         }
       },
       {
-        $sort: { averageRating: -1, ratingCount: -1 }
+        $sort: { averageRating: -1, totalRatings: -1 }
       },
       {
         $limit: 10
@@ -192,12 +192,13 @@ exports.getTopRated = async (req, res) => {
         $project: {
           password: 0,
           verificationToken: 0,
-          verificationExpires: 0
+          verificationExpires: 0,
+          idNumber: 0
         }
       }
     ]);
     
-    res.status(200).json(users);
+    res.status(200).json({ workers: users });
   } catch (err) {
     res.status(500).json({
       message: "Error fetching top rated users",

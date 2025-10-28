@@ -517,14 +517,38 @@ exports.setActiveGoal = async (req, res) => {
         const goalId = req.params.id;
         const { isPriority } = req.body;
         
+        console.log('=== setActiveGoal START ===');
+        console.log('Goal ID:', goalId);
+        console.log('User ID:', req.user?.id);
+        console.log('Is Priority:', isPriority);
+        
+        if (!req.user || !req.user.id) {
+            console.error('No user found in request');
+            return res.status(401).json({
+                message: "Unauthorized",
+                alert: "User not authenticated"
+            });
+        }
+        
         // Find the goal
+        console.log('Finding goal...');
         const goal = await Goal.findOne({ 
             _id: goalId, 
             user: req.user.id,
             completed: false
         });
         
+        console.log('Goal found:', goal ? 'YES' : 'NO');
+        
         if (!goal) {
+            console.log('Goal not found - checking if deleted...');
+            const deletedGoal = await Goal.findOne({ _id: goalId, user: req.user.id }).setOptions({ includeSoftDeleted: true });
+            if (deletedGoal && deletedGoal.isDeleted) {
+                return res.status(400).json({
+                    message: "This goal has been deleted",
+                    alert: "Cannot activate a deleted goal"
+                });
+            }
             return res.status(404).json({
                 message: "Goal not found or already completed",
                 alert: "The selected goal could not be activated"
@@ -533,23 +557,27 @@ exports.setActiveGoal = async (req, res) => {
         
         // If this is just setting as priority, don't activate it yet
         if (isPriority === true) {
+            console.log('Setting goal as priority...');
             goal.isPriority = true;
             await goal.save();
+            console.log('Goal saved as priority');
             
             return res.status(200).json({
                 message: "Goal set as priority",
-                goal,
+                goal: goal.toObject(),
                 alert: `"${goal.description}" will be activated when your current active goal is completed`
             });
         }
         
-        // Otherwise activate it normally
+        console.log('Activating goal...');
         
         // Deactivate all other goals
-        await Goal.updateMany(
+        console.log('Deactivating other goals...');
+        const updateResult = await Goal.updateMany(
             { user: req.user.id, isActive: true },
             { isActive: false }
         );
+        console.log('Deactivated goals:', updateResult.modifiedCount);
         
         // Set this goal as active
         goal.isActive = true;
@@ -559,22 +587,39 @@ exports.setActiveGoal = async (req, res) => {
             goal.isPriority = false;
         }
         
+        console.log('Saving goal...');
         await goal.save();
+        console.log('Goal saved successfully');
         
-        await createNotification({
-            recipient: req.user.id,
-            type: 'goal_activated',
-            message: `Goal activated: ${goal.description}`
-        });
+        // Try to create notification but don't fail if it errors
+        try {
+            console.log('Creating notification...');
+            await createNotification({
+                recipient: req.user.id,
+                type: 'goal_activated',
+                message: `Goal activated: ${goal.description}`
+            });
+            console.log('Notification created');
+        } catch (notifErr) {
+            console.error('Error creating notification (non-fatal):', notifErr.message);
+        }
+        
+        console.log('Preparing response...');
+        const goalObject = goal.toObject();
+        console.log('Sending response...');
         
         res.status(200).json({
             message: "Goal set as active",
-            goal,
+            goal: goalObject,
             alert: `"${goal.description}" is now your active goal`
         });
         
+        console.log('=== setActiveGoal SUCCESS ===');
+        
     } catch (err) {
-        console.error('Error setting active goal:', err);
+        console.error('=== setActiveGoal ERROR ===');
+        console.error('Error:', err.message);
+        console.error('Stack:', err.stack);
         res.status(500).json({ 
             message: "Error setting active goal", 
             error: err.message,

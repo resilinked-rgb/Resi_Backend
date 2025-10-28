@@ -16,11 +16,14 @@ exports.findMatchingJobs = async (user, limit = 10) => {
     console.log(`Finding job matches for user ${user._id} with skills: ${user.skills.join(', ')}`);
     
     // Find all open jobs
-    const allOpenJobs = await Job.find({
+    const allJobs = await Job.find({
         isOpen: true
     }).populate('postedBy', 'firstName lastName profilePicture');
     
-    console.log(`Found ${allOpenJobs.length} open jobs total`);
+    // Filter out jobs where the employer no longer exists (postedBy is null)
+    const allOpenJobs = allJobs.filter(job => job.postedBy != null);
+    
+    console.log(`Found ${allOpenJobs.length} open jobs with valid employers (${allJobs.length - allOpenJobs.length} jobs filtered out with deleted employers)`);
     
     // Score and filter jobs based on various factors
     const scored = allOpenJobs.map(job => {
