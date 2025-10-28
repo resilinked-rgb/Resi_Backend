@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema({
 
     // Verification and Profile Information
     isVerified: { type: Boolean, default: false },  // Admin verification
+    isEmailVerified: { type: Boolean, default: false },  // Email verification
     verificationToken: { type: String },
     verificationExpires: { type: Date },
     gender: { 

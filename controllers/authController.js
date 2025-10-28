@@ -93,7 +93,8 @@ exports.register = async (req, res) => {
             idFrontImage,
             idBackImage,
             barangayClearanceImage,
-            isVerified: false,
+            isEmailVerified: false, // Email verification pending
+            isVerified: false, // Admin approval pending
             verificationToken,
             verificationExpires: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
         });
@@ -246,24 +247,45 @@ exports.login = async (req, res) => {
             });
         }
 
-        if (!user.isVerified) {
-            console.log("⚠️ Unverified account:", email);
+        if (!user.isEmailVerified) {
+            console.log("⚠️ Email not verified:", email);
             // ✅ LOG ACTIVITY: Attempt to login unverified account
             createActivityLog({
               userId: user._id,
               userName: `${user.firstName} ${user.lastName}`,
               type: 'email_verification',
-              description: 'Attempt to login with unverified account',
+              description: 'Attempt to login with unverified email',
               metadata: {
                 email: user.email,
-                verified: false
+                emailVerified: false
               }
             }).catch(err => console.error("Activity log error:", err));
 
             return res.status(403).json({
                 success: false,
-                message: "Account not verified",
+                message: "Email not verified",
                 alert: "Please verify your email first"
+            });
+        }
+
+        if (!user.isVerified) {
+            console.log("⚠️ Account not approved by admin:", email);
+            // ✅ LOG ACTIVITY: Attempt to login unapproved account
+            createActivityLog({
+              userId: user._id,
+              userName: `${user.firstName} ${user.lastName}`,
+              type: 'admin_verification',
+              description: 'Attempt to login with unapproved account',
+              metadata: {
+                email: user.email,
+                adminVerified: false
+              }
+            }).catch(err => console.error("Activity log error:", err));
+
+            return res.status(403).json({
+                success: false,
+                message: "Account pending admin approval",
+                alert: "Your account is pending admin approval. Please wait for verification."
             });
         }
 
@@ -515,11 +537,11 @@ exports.resendVerification = async (req, res) => {
             });
         }
 
-        if (user.isVerified) {
+        if (user.isEmailVerified) {
             return res.status(400).json({
                 success: false,
-                message: "Already verified",
-                alert: "This account is already verified"
+                message: "Email already verified",
+                alert: "This email is already verified"
             });
         }
 
@@ -621,7 +643,7 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    user.isVerified = true;
+    user.isEmailVerified = true;
     user.verificationToken = undefined;
     user.verificationExpires = undefined;
     await user.save();
