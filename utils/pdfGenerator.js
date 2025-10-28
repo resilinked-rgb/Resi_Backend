@@ -43,37 +43,34 @@ function generateAnalyticsReport(analytics, filters = {}) {
 
       // === KEY PERFORMANCE INDICATORS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('📊 KEY PERFORMANCE INDICATORS', { align: 'left' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('KEY PERFORMANCE INDICATORS', { align: 'left' });
       doc.moveDown(0.5);
       
       if (analytics) {
         const kpis = [
-          { label: 'Total Users', value: analytics.totalUsers || 0, icon: '👥' },
-          { label: 'Total Jobs', value: analytics.totalJobs || 0, icon: '💼' },
-          { label: 'Total Ratings', value: analytics.totalRatings || 0, icon: '⭐' },
-          { label: 'Total Reports', value: analytics.totalReports || 0, icon: '📋' },
+          { label: 'Total Users', value: analytics.totalUsers || 0 },
+          { label: 'Total Jobs', value: analytics.totalJobs || 0 },
+          { label: 'Total Ratings', value: analytics.totalRatings || 0 },
+          { label: 'Total Reports', value: analytics.totalReports || 0 },
         ];
         
-        const startX = 70, startY = doc.y, colW = 110, rowH = 50;
+        const startX = 70, startY = doc.y, colW = 110, rowH = 45;
         kpis.forEach((kpi, i) => {
           // Card background
           doc.rect(startX + i * colW, startY, colW - 5, rowH).fillAndStroke('#f0f7ff', '#2b6cb0');
           
-          // Icon
-          doc.fontSize(16).text(kpi.icon, startX + i * colW + 8, startY + 8);
-          
           // Label
-          doc.font('Helvetica').fontSize(9).fillColor('#555').text(kpi.label, startX + i * colW + 8, startY + 28, { width: colW - 16, align: 'center' });
+          doc.font('Helvetica').fontSize(9).fillColor('#555').text(kpi.label, startX + i * colW + 8, startY + 12, { width: colW - 16, align: 'center' });
           
           // Value
-          doc.font('Helvetica-Bold').fontSize(13).fillColor('#2b6cb0').text(kpi.value.toLocaleString(), startX + i * colW + 8, startY + 38, { width: colW - 16, align: 'center' });
+          doc.font('Helvetica-Bold').fontSize(16).fillColor('#2b6cb0').text(kpi.value.toLocaleString(), startX + i * colW + 8, startY + 25, { width: colW - 16, align: 'center' });
         });
         doc.y = startY + rowH + 15;
       }
 
       // === USER ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('👥 USER ANALYTICS', { align: 'left' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('USER ANALYTICS', { align: 'left' });
       doc.moveDown(0.8);
 
       // User Type Distribution
@@ -90,7 +87,7 @@ function generateAnalyticsReport(analytics, filters = {}) {
 
         let startX = 70;
         userTypes.forEach((type, i) => {
-          doc.fontSize(9).font('Helvetica-Bold').fillColor(type.color);
+          doc.fontSize(10).font('Helvetica-Bold').fillColor(type.color);
           doc.text(`${type.label}:`, startX + i * 150, doc.y, { continued: true });
           doc.font('Helvetica').fillColor('#333');
           doc.text(` ${type.count.toLocaleString()} (${type.percent}%)`);
@@ -106,16 +103,16 @@ function generateAnalyticsReport(analytics, filters = {}) {
         const gender = analytics.genderDistribution;
         const total = analytics.totalUsers || 1;
         const genders = [
-          { label: 'Male', count: gender.male || 0, icon: '♂' },
-          { label: 'Female', count: gender.female || 0, icon: '♀' },
-          { label: 'Others', count: gender.others || 0, icon: '⚧' },
-          { label: 'Not Specified', count: gender.notSpecified || 0, icon: '❓' }
+          { label: 'Male', count: gender.male || 0 },
+          { label: 'Female', count: gender.female || 0 },
+          { label: 'Others', count: gender.others || 0 },
+          { label: 'Not Specified', count: gender.notSpecified || 0 }
         ];
 
         genders.forEach((g, i) => {
           const percent = total > 0 ? Math.round((g.count / total) * 100) : 0;
-          doc.fontSize(9).font('Helvetica');
-          doc.text(`${g.icon} ${g.label}:`, 70 + (i % 2) * 250, doc.y, { continued: true });
+          doc.fontSize(10).font('Helvetica');
+          doc.text(`${g.label}:`, 70 + (i % 2) * 250, doc.y, { continued: true });
           doc.font('Helvetica-Bold').text(` ${g.count.toLocaleString()} (${percent}%)`);
           if (i % 2 === 1) doc.moveDown(0.3);
         });
@@ -128,20 +125,20 @@ function generateAnalyticsReport(analytics, filters = {}) {
         doc.font('Helvetica').fontSize(10).fillColor('#333');
         
         const verified = analytics.verifiedUsers;
-        doc.text('✓ Verified Users:', 70, doc.y, { continued: true });
+        doc.text('Verified Users:', 70, doc.y, { continued: true });
         doc.font('Helvetica-Bold').fillColor('#10b981').text(` ${verified.count?.toLocaleString() || 0} (${verified.percentage || 0}%)`);
         
         const unverified = (analytics.totalUsers || 0) - (verified.count || 0);
         const unverifiedPercent = 100 - (verified.percentage || 0);
         doc.font('Helvetica').fillColor('#333');
-        doc.text('✗ Unverified Users:', 70, doc.y, { continued: true });
+        doc.text('Unverified Users:', 70, doc.y, { continued: true });
         doc.font('Helvetica-Bold').fillColor('#ef4444').text(` ${unverified.toLocaleString()} (${unverifiedPercent}%)`);
         doc.moveDown(1);
       }
 
       // === JOB ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('💼 JOB ANALYTICS', { align: 'left' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('JOB ANALYTICS', { align: 'left' });
       doc.moveDown(0.8);
 
       // Job Statistics
@@ -160,24 +157,24 @@ function generateAnalyticsReport(analytics, filters = {}) {
         
         doc.font('Helvetica').fillColor('#333');
         doc.text('Total Value:', 70, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` ₱${js.totalValue?.toLocaleString() || 0}`);
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.totalValue?.toLocaleString() || 0}`);
         
         doc.font('Helvetica').fillColor('#333');
         doc.text('Average Price:', 300, doc.y, { continued: true });
-        doc.font('Helvetica-Bold').fillColor('#059669').text(` ₱${js.averagePrice?.toLocaleString() || 0}`);
+        doc.font('Helvetica-Bold').fillColor('#059669').text(` PHP ${js.averagePrice?.toLocaleString() || 0}`);
         doc.moveDown(1.5);
       }
 
       // Popular Jobs
       if (analytics?.popularJobs && analytics.popularJobs.length > 0) {
         subsectionHeader('Top 5 Popular Jobs (By Applicants)');
-        doc.fontSize(9).font('Helvetica').fillColor('#333');
+        doc.fontSize(10).font('Helvetica').fillColor('#333');
         
         analytics.popularJobs.forEach((job, i) => {
           doc.font('Helvetica-Bold').text(`${i + 1}. ${job.title || 'Untitled'}`, 70, doc.y);
-          doc.font('Helvetica').fontSize(8).fillColor('#666');
-          doc.text(`   📍 ${job.barangay || 'N/A'} | 💰 ₱${job.price?.toLocaleString() || 0} | 👥 ${job.applicantCount} applicants`, 70, doc.y);
-          doc.fontSize(9).fillColor('#333');
+          doc.font('Helvetica').fontSize(9).fillColor('#666');
+          doc.text(`   Location: ${job.barangay || 'N/A'} | Price: P${job.price?.toLocaleString() || 0} | Applicants: ${job.applicantCount}`, 70, doc.y);
+          doc.fontSize(10).fillColor('#333');
           doc.moveDown(0.3);
         });
         doc.moveDown(0.8);
@@ -185,13 +182,13 @@ function generateAnalyticsReport(analytics, filters = {}) {
 
       // === LOCATION ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('📍 LOCATION ANALYTICS', { align: 'left' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('LOCATION ANALYTICS', { align: 'left' });
       doc.moveDown(0.8);
 
       // Popular Barangays
       if (analytics?.popularBarangays && analytics.popularBarangays.length > 0) {
         subsectionHeader('Top 5 Popular Barangays');
-        doc.fontSize(9).font('Helvetica').fillColor('#333');
+        doc.fontSize(10).font('Helvetica').fillColor('#333');
         
         analytics.popularBarangays.forEach((item, i) => {
           doc.text(`${i + 1}. ${item.barangay || 'N/A'}:`, 70, doc.y, { continued: true });
@@ -203,13 +200,13 @@ function generateAnalyticsReport(analytics, filters = {}) {
 
       // === SKILLS ANALYTICS ===
       sectionDivider();
-      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('🛠️ SKILLS ANALYTICS', { align: 'left' });
+      doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('SKILLS ANALYTICS', { align: 'left' });
       doc.moveDown(0.8);
 
       // Popular Skills
       if (analytics?.popularSkills && analytics.popularSkills.length > 0) {
         subsectionHeader('Top 10 In-Demand Skills');
-        doc.fontSize(9).font('Helvetica').fillColor('#333');
+        doc.fontSize(10).font('Helvetica').fillColor('#333');
         
         // Display in 2 columns
         analytics.popularSkills.forEach((skill, i) => {
@@ -230,16 +227,17 @@ function generateAnalyticsReport(analytics, filters = {}) {
       // === RECENT ACTIVITY ===
       if (analytics?.recentActivity && analytics.recentActivity.length > 0) {
         sectionDivider();
-        doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('🕐 RECENT ACTIVITY', { align: 'left' });
+        doc.fontSize(14).font('Helvetica-Bold').fillColor('#2b6cb0').text('RECENT ACTIVITY', { align: 'left' });
         doc.moveDown(0.8);
         
-        doc.fontSize(9).font('Helvetica').fillColor('#333');
+        doc.fontSize(10).font('Helvetica').fillColor('#333');
         analytics.recentActivity.slice(0, 8).forEach((activity, i) => {
           const date = new Date(activity.createdAt).toLocaleDateString();
           const time = new Date(activity.createdAt).toLocaleTimeString();
-          doc.text(`• ${activity.description}`, 70, doc.y);
-          doc.fontSize(8).fillColor('#666').text(`  ${date} at ${time}`, 70, doc.y);
-          doc.fontSize(9).fillColor('#333');
+          const typeIcon = activity.type === 'user' ? '[User]' : '[Job]';
+          doc.text(`${typeIcon} ${activity.description}`, 70, doc.y);
+          doc.fontSize(9).fillColor('#666').text(`  ${date} at ${time}`, 70, doc.y);
+          doc.fontSize(10).fillColor('#333');
           doc.moveDown(0.2);
         });
       }
@@ -464,8 +462,8 @@ function addFilterSection(doc, filters) {
   if (filters.barangay) filterText += `Barangay: ${filters.barangay}\n`;
   if (filters.verified !== undefined) filterText += `Verified: ${filters.verified ? 'Yes' : 'No'}\n`;
   if (filters.status) filterText += `Status: ${filters.status}\n`;
-  if (filters.minPrice) filterText += `Min Price: ₱${filters.minPrice}\n`;
-  if (filters.maxPrice) filterText += `Max Price: ₱${filters.maxPrice}\n`;
+  if (filters.minPrice) filterText += `Min Price: PHP ${filters.minPrice}\n`;
+  if (filters.maxPrice) filterText += `Max Price: PHP ${filters.maxPrice}\n`;
   if (filters.minRating) filterText += `Min Rating: ${filters.minRating} stars\n`;
   if (filters.maxRating) filterText += `Max Rating: ${filters.maxRating} stars\n`;
   if (filters.startDate) filterText += `Start Date: ${new Date(filters.startDate).toLocaleDateString()}\n`;
@@ -581,7 +579,7 @@ function addUserTable(doc, users) {
     
     doc.font('Helvetica-Bold').text('Verification:', infoLeft, currentY, { continued: true });
     doc.fillColor(user.isVerified ? '#10b981' : '#ef4444');
-    doc.font('Helvetica-Bold').text(` ${user.isVerified ? '✓ VERIFIED' : '✗ UNVERIFIED'}`);
+    doc.font('Helvetica-Bold').text(` ${user.isVerified ? 'VERIFIED' : 'UNVERIFIED'}`);
     doc.fillColor('#333');
     currentY += lineHeight;
     
@@ -613,7 +611,7 @@ function addUserTable(doc, users) {
     if (user.barangayClearanceImage) docs.push('Brgy Clearance');
     
     if (docs.length > 0) {
-      doc.text('Documents: ' + docs.join(' • '), infoLeft, currentY);
+      doc.text('Documents: ' + docs.join(', '), infoLeft, currentY);
       currentY += 15;
     }
     doc.fillColor('#333');
@@ -686,7 +684,7 @@ function addJobTable(doc, jobs) {
     
     doc.font('Helvetica-Bold').text('Price:', infoLeft, currentY, { continued: true });
     doc.font('Helvetica').fillColor('#10b981');
-    doc.text(` ₱${job.price?.toLocaleString() || '0'}`);
+    doc.text(` PHP ${job.price?.toLocaleString() || '0'}`);
     doc.fillColor('#333');
     currentY += lineHeight;
     
@@ -721,7 +719,7 @@ function addJobTable(doc, jobs) {
       currentY += 15;
       
       doc.fontSize(8).font('Helvetica').fillColor('#333');
-      const skillsText = job.skillsRequired.slice(0, 5).join(' • '); // Limit to 5 skills
+      const skillsText = job.skillsRequired.slice(0, 5).join(', '); // Limit to 5 skills
       doc.text(skillsText, infoLeft, currentY, { width: 470 });
       currentY += 20;
     }
@@ -733,20 +731,20 @@ function addJobTable(doc, jobs) {
       currentY += 15;
       
       doc.fontSize(8).font('Helvetica').fillColor('#333');
-      doc.text(`${job.postedBy.firstName} ${job.postedBy.lastName} • ${job.postedBy.email}`, infoLeft, currentY);
+      doc.text(`${job.postedBy.firstName} ${job.postedBy.lastName} - ${job.postedBy.email}`, infoLeft, currentY);
       currentY += 12;
-      doc.text(`Mobile: ${job.postedBy.mobileNo || 'N/A'} • Location: ${job.postedBy.barangay || 'N/A'}`, infoLeft, currentY);
+      doc.text(`Mobile: ${job.postedBy.mobileNo || 'N/A'} | Location: ${job.postedBy.barangay || 'N/A'}`, infoLeft, currentY);
       currentY += 20;
     }
     
     // === ASSIGNED EMPLOYEE ===
     if (job.assignedTo) {
       doc.fontSize(10).font('Helvetica-Bold').fillColor('#10b981');
-      doc.text('✓ ASSIGNED EMPLOYEE', cardLeft + 15, currentY);
+      doc.text('ASSIGNED EMPLOYEE', cardLeft + 15, currentY);
       currentY += 15;
       
       doc.fontSize(8).font('Helvetica').fillColor('#333');
-      doc.text(`${job.assignedTo.firstName} ${job.assignedTo.lastName} • ${job.assignedTo.email}`, infoLeft, currentY);
+      doc.text(`${job.assignedTo.firstName} ${job.assignedTo.lastName} - ${job.assignedTo.email}`, infoLeft, currentY);
       currentY += 12;
       if (job.assignedTo.skills && job.assignedTo.skills.length > 0) {
         doc.text(`Skills: ${job.assignedTo.skills.slice(0, 3).join(', ')}`, infoLeft, currentY);
