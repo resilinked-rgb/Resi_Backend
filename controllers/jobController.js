@@ -5,6 +5,7 @@ const { findMatchingJobs } = require('../utils/matchingEngine');
 const { createNotification } = require('../utils/notificationHelper');
 const { sendSMS } = require('../utils/smsService');
 const { addIncomeToActiveGoal } = require('./goalController');
+const { createActivityLog } = require('./activityController');
 
 //  POST /api/jobs → Post a new job
 exports.postJob = async (req, res) => {
