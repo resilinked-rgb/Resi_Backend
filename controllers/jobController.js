@@ -5,7 +5,7 @@ const { findMatchingJobs } = require('../utils/matchingEngine');
 const { createNotification } = require('../utils/notificationHelper');
 const { sendSMS } = require('../utils/smsService');
 const { addIncomeToActiveGoal } = require('./goalController');
-const { createActivityLog } = require('./activityController');
+const { createActivity } = require('./activityController');
 
 //  POST /api/jobs → Post a new job
 exports.postJob = async (req, res) => {
@@ -1102,18 +1102,24 @@ exports.deleteJob = async (req, res) => {
         });
         console.log('Job successfully soft-deleted:', req.params.id);
 
-        // Create activity log for the deletion
-        await createActivityLog({
-            userId: req.user.id,
-            userName: `${req.user.firstName} ${req.user.lastName}`,
-            type: 'job_delete',
-            description: `User deleted job: ${job.title}`,
-            metadata: {
-                jobId: job._id,
-                title: job.title,
-                isSoftDelete: true
-            }
-        });
+        // Create activity log for the deletion (optional - don't fail if this errors)
+        try {
+            await createActivity({
+                userId: req.user.id,
+                userName: `${req.user.firstName} ${req.user.lastName}`,
+                type: 'job_delete',
+                description: `User deleted job: ${job.title}`,
+                relatedEntity: job._id,
+                entityType: 'Job',
+                metadata: {
+                    jobId: job._id,
+                    title: job.title,
+                    isSoftDelete: true
+                }
+            });
+        } catch (logErr) {
+            console.error('Failed to create activity log (non-critical):', logErr.message);
+        }
 
         res.status(200).json({ 
             message: "Job deleted successfully",
