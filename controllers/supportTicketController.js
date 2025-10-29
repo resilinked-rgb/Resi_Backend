@@ -65,7 +65,7 @@ exports.createSupportTicket = async (req, res) => {
  */
 exports.getAllSupportTickets = async (req, res) => {
     try {
-        const { status, priority } = req.query;
+        const { status, priority, q } = req.query;
         
         let query = {};
         if (status && status !== 'all') {
@@ -73,6 +73,16 @@ exports.getAllSupportTickets = async (req, res) => {
         }
         if (priority && priority !== 'all') {
             query.priority = priority;
+        }
+        
+        // Search functionality
+        if (q) {
+            query.$or = [
+                { subject: { $regex: q, $options: 'i' } },
+                { message: { $regex: q, $options: 'i' } },
+                { name: { $regex: q, $options: 'i' } },
+                { email: { $regex: q, $options: 'i' } }
+            ];
         }
 
         console.log('Fetching support tickets with query:', query);

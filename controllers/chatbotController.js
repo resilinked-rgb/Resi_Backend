@@ -75,7 +75,7 @@ const chatbotQuery = async (req, res) => {
           queryInput: {
             text: {
               text: message,
-              languageCode: 'en-US',
+              languageCode: 'en', // Use 'en' for broader language support including Tagalog detection
             },
           },
         };
@@ -116,6 +116,13 @@ const chatbotQuery = async (req, res) => {
       try {
         console.log('🔄 Using Gemini AI for response...');
         const systemPrompt = `You are ResiLinked Assistant, a helpful AI chatbot for ResiLinked - a platform that connects workers and employers in local communities.
+
+LANGUAGE SUPPORT:
+- Detect and respond in the SAME LANGUAGE the user is using
+- Support English, Tagalog, and other Filipino languages
+- If user writes in Tagalog, respond in Tagalog
+- If user writes in English, respond in English
+- If user mixes languages, respond in the primary language used
 
 ABOUT RESILINKED:
 - ResiLinked is a job marketplace connecting local workers with employers

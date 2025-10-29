@@ -195,8 +195,13 @@ exports.getReports = async (req, res) => {
             return res.status(403).json({ message: "Admin access required" });
         }
 
-        const { status } = req.query;
-        const query = status ? { status } : {};
+        const { status, q } = req.query;
+        let query = status ? { status } : {};
+        
+        // Search functionality
+        if (q) {
+            query.reason = { $regex: q, $options: 'i' };
+        }
 
         const reports = await Report.find(query)
             .populate('reporter', 'firstName lastName email')
@@ -264,19 +269,29 @@ exports.updateReportStatus = async (req, res) => {
             reportedType = 'item';
         }
 
-        // Notify reporter about status change
-        if (status === 'resolved') {
-            await createNotification({
-                recipient: report.reporter._id,
-                type: 'report_resolved',
-                message: `Your report against ${reportedName} has been resolved by the admin. You may be contacted by the barangay office to settle the dispute.`
-            });
-        } else if (status === 'dismissed') {
-            await createNotification({
-                recipient: report.reporter._id,
-                type: 'report_dismissed',
-                message: `Your report against ${reportedName} has been reviewed and dismissed. If you believe this was an error, please contact the barangay office.`
-            });
+        // Notify reporter about status change (don't fail if notification fails)
+        try {
+            if (report.reporter && report.reporter._id) {
+                if (status === 'resolved') {
+                    await createNotification({
+                        recipient: report.reporter._id,
+                        type: 'report_resolved',
+                        message: `Your report against ${reportedName} has been resolved by the admin. You may be contacted by the barangay office to settle the dispute.`
+                    });
+                } else if (status === 'dismissed') {
+                    await createNotification({
+                        recipient: report.reporter._id,
+                        type: 'report_dismissed',
+                        message: `Your report against ${reportedName} has been reviewed and dismissed. If you believe this was an error, please contact the barangay office.`
+                    });
+                }
+                console.log(`✅ Notification sent to reporter for ${status} report`);
+            } else {
+                console.warn('⚠️ Reporter not found, skipping notification');
+            }
+        } catch (notificationError) {
+            console.error('⚠️ Failed to send notification to reporter:', notificationError.message);
+            // Continue anyway - the report status was updated successfully
         }
 
         res.status(200).json({
@@ -285,6 +300,7 @@ exports.updateReportStatus = async (req, res) => {
             alert: `Report ${status} successfully`
         });
     } catch (err) {
+        console.error('❌ Error updating report status:', err);
         res.status(500).json({
             message: "Error updating report",
             error: err.message,
