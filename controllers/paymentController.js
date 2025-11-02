@@ -13,11 +13,40 @@ const { addIncomeToActiveGoal } = require('./goalController');
 exports.initiatePayment = async (req, res) => {
   try {
     console.log('💰 Payment initiation request received');
-    console.log('Request body:', req.body);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
     console.log('User ID:', req.user?.id);
     
     const { jobId, paymentMethod, receiptImage } = req.body;
     const employerId = req.user.id;
+
+    // Validate required fields
+    if (!jobId) {
+      console.error('❌ Missing jobId');
+      return res.status(400).json({ 
+        message: 'Job ID is required',
+        field: 'jobId'
+      });
+    }
+
+    if (!paymentMethod) {
+      console.error('❌ Missing paymentMethod');
+      return res.status(400).json({ 
+        message: 'Payment method is required',
+        field: 'paymentMethod',
+        allowedMethods: ['gcash', 'paymaya', 'grab_pay', 'card', 'manual']
+      });
+    }
+
+    // Validate payment method
+    const allowedMethods = ['gcash', 'paymaya', 'grab_pay', 'card', 'manual'];
+    if (!allowedMethods.includes(paymentMethod)) {
+      console.error('❌ Invalid payment method:', paymentMethod);
+      return res.status(400).json({ 
+        message: 'Invalid payment method',
+        provided: paymentMethod,
+        allowedMethods: allowedMethods
+      });
+    }
 
     // Validate job and check for existing payment in parallel
     console.log('🔍 Looking up job:', jobId);
@@ -45,10 +74,24 @@ exports.initiatePayment = async (req, res) => {
 
     // Check if payment already exists or is in progress
     if (existingPayment) {
+      console.error('❌ Payment already exists:', {
+        paymentId: existingPayment._id,
+        status: existingPayment.status,
+        createdAt: existingPayment.createdAt
+      });
       return res.status(400).json({ 
         message: 'Payment already exists for this job',
-        payment: existingPayment,
-        status: existingPayment.status
+        payment: {
+          id: existingPayment._id,
+          status: existingPayment.status,
+          amount: existingPayment.amount,
+          createdAt: existingPayment.createdAt
+        },
+        hint: existingPayment.status === 'pending' 
+          ? 'Payment is pending. Please complete the payment or use /check-status endpoint.'
+          : existingPayment.status === 'processing'
+          ? 'Payment is being processed. Please wait.'
+          : 'Payment already completed for this job.'
       });
     }
 
@@ -214,9 +257,11 @@ exports.initiatePayment = async (req, res) => {
       });
     }
 
-    return res.status(400).json({ 
-      message: 'Invalid payment method',
-      allowedMethods: ['gcash', 'paymaya', 'grab_pay', 'card', 'manual']
+    // This should never be reached due to validation above
+    console.error('❌ Unexpected: Reached end of payment method handling without returning');
+    return res.status(500).json({ 
+      message: 'Internal error: Payment method validation failed',
+      error: 'Please contact support'
     });
 
   } catch (error) {
