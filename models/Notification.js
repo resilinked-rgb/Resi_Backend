@@ -30,7 +30,10 @@ const notificationSchema = new mongoose.Schema({
             'message',
             'job_update',
             'account_update',
-            'goal_update'
+            'goal_update',
+            'payment_received',
+            'payment_successful',
+            'payment_failed'
         ],
         required: true
     },

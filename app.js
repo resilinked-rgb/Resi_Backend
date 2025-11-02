@@ -26,6 +26,7 @@ const exportRoutes = require('./routes/exportRoutes');
 const softDeleteRoutes = require('./routes/softDeleteRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const emailChangeRoutes = require('./routes/emailChangeRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const { createNotification } = require('./utils/notificationHelper');
 
 const PORT = process.env.PORT || 5000;
@@ -156,6 +157,7 @@ app.use("/api/export", exportRoutes);
 app.use("/api/admin/soft-delete", softDeleteRoutes);
 app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/email-change", emailChangeRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Test notification endpoint for debugging
 app.post("/api/test-notification", async (req, res) => {
