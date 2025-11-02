@@ -443,6 +443,11 @@ exports.getPaymentStatus = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
+    // Ensure no caching for payment status
+    res.removeHeader('ETag');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Last-Modified', new Date().toUTCString());
+
     res.status(200).json({
       success: true,
       payment: payment
@@ -468,6 +473,11 @@ exports.getJobPayments = async (req, res) => {
       .populate('employerId', 'firstName lastName')
       .populate('workerId', 'firstName lastName')
       .sort({ createdAt: -1 });
+
+    // Ensure no caching for payment data (sensitive financial information)
+    res.removeHeader('ETag');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Last-Modified', new Date().toUTCString());
 
     res.status(200).json({
       success: true,
@@ -508,6 +518,11 @@ exports.getMyPayments = async (req, res) => {
       .populate('employerId', 'firstName lastName profilePicture')
       .populate('workerId', 'firstName lastName profilePicture')
       .sort({ createdAt: -1 });
+
+    // Ensure no caching for payment history (sensitive financial data)
+    res.removeHeader('ETag');
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Last-Modified', new Date().toUTCString());
 
     res.status(200).json({
       success: true,
