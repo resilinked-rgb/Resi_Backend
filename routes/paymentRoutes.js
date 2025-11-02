@@ -29,4 +29,7 @@ router.get('/my-payments', auth, noCacheMiddleware, paymentController.getMyPayme
 // Manually check payment status from PayMongo (for debugging stuck payments)
 router.post('/:paymentId/check-status', auth, paymentController.checkPaymentStatusFromPayMongo);
 
+// Complete payment by job ID (called from success page redirect)
+router.post('/complete-by-job/:jobId', auth, paymentController.completePaymentByJobId);
+
 module.exports = router;

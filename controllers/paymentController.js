@@ -683,3 +683,161 @@ exports.checkPaymentStatusFromPayMongo = async (req, res) => {
     });
   }
 };
+
+/**
+ * Check and complete payment by job ID (for success page redirect)
+ * POST /api/payments/complete-by-job/:jobId
+ */
+exports.completePaymentByJobId = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    console.log('🔍 Checking payment completion for job:', jobId);
+
+    // Find the most recent pending/processing payment for this job
+    const payment = await Payment.findOne({ 
+      jobId: jobId,
+      status: { $in: ['pending', 'processing'] }
+    })
+      .sort({ createdAt: -1 })
+      .populate('jobId', 'title price')
+      .populate('employerId', 'firstName lastName')
+      .populate('workerId', 'firstName lastName');
+
+    if (!payment) {
+      console.log('❌ No pending payment found for job:', jobId);
+      
+      // Check if payment already succeeded
+      const completedPayment = await Payment.findOne({ 
+        jobId: jobId,
+        status: 'succeeded'
+      }).sort({ createdAt: -1 });
+
+      if (completedPayment) {
+        return res.status(200).json({
+          success: true,
+          message: 'Payment already completed',
+          payment: completedPayment,
+          alreadyCompleted: true
+        });
+      }
+
+      return res.status(404).json({ 
+        success: false,
+        message: 'No payment found for this job',
+        hint: 'Payment may not have been initiated or already completed'
+      });
+    }
+
+    console.log('✅ Found payment:', payment._id, 'Status:', payment.status);
+
+    let paymongoStatus = null;
+    let updated = false;
+
+    // Check PayMongo source status first (for e-wallets)
+    if (payment.paymongoSourceId) {
+      try {
+        console.log('🔍 Checking PayMongo Source:', payment.paymongoSourceId);
+        const sourceData = await paymongo.getSource(payment.paymongoSourceId);
+        const sourceStatus = sourceData.data.attributes.status;
+        
+        console.log('📊 Source Status:', sourceStatus);
+        paymongoStatus = sourceStatus;
+
+        // If source is chargeable and we don't have a payment ID yet, create payment
+        if (sourceStatus === 'chargeable' && !payment.paymongoPaymentId) {
+          console.log('💳 Creating payment from chargeable source...');
+          const paymentData = await paymongo.createPayment(
+            payment.paymongoSourceId,
+            paymongo.phpToCentavos(payment.amount),
+            payment.description
+          );
+
+          payment.status = 'processing';
+          payment.paymongoPaymentId = paymentData.data.id;
+          await payment.save();
+          updated = true;
+
+          console.log('✅ Payment created:', paymentData.data.id);
+        }
+      } catch (error) {
+        console.error('❌ Error checking source:', error.message);
+      }
+    }
+
+    // Check PayMongo payment intent status (for cards)
+    if (payment.paymongoPaymentIntentId) {
+      try {
+        console.log('🔍 Checking PayMongo Intent:', payment.paymongoPaymentIntentId);
+        const intentData = await paymongo.getPaymentIntent(payment.paymongoPaymentIntentId);
+        paymongoStatus = intentData.data.attributes.status;
+        
+        console.log('📊 Intent Status:', paymongoStatus);
+        
+        // If payment succeeded in PayMongo, complete it locally
+        if (paymongoStatus === 'succeeded' && payment.status !== 'succeeded') {
+          console.log('✅ Payment succeeded! Completing job...');
+          
+          payment.status = 'succeeded';
+          payment.paidAt = new Date();
+          await payment.save();
+          updated = true;
+          
+          // Complete job
+          const job = await Job.findById(payment.jobId);
+          if (job && !job.completed) {
+            job.completed = true;
+            job.completedAt = new Date();
+            await job.save();
+            
+            console.log('✅ Job marked as completed');
+            
+            // Add income to worker goal
+            await addIncomeToActiveGoal(payment.workerId._id, payment.workerAmount);
+            console.log('✅ Income added to goal');
+            
+            // Send notifications
+            await Promise.all([
+              createNotification({
+                recipient: payment.workerId._id,
+                type: 'payment_received',
+                message: `Payment of ₱${payment.workerAmount.toLocaleString()} received for job: ${job.title}`,
+                relatedJob: payment.jobId
+              }),
+              createNotification({
+                recipient: payment.employerId._id,
+                type: 'payment_confirmed',
+                message: `Payment confirmed for job: ${job.title}`,
+                relatedJob: payment.jobId
+              })
+            ]);
+            
+            console.log('✅ Notifications sent');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error checking payment intent:', error.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      payment: payment,
+      paymongoStatus: paymongoStatus,
+      updated: updated,
+      message: updated 
+        ? 'Payment completed successfully!' 
+        : payment.status === 'succeeded'
+        ? 'Payment already completed'
+        : 'Payment is still processing. Please wait a moment and refresh.'
+    });
+
+  } catch (error) {
+    console.error('❌ Error completing payment by job:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to check payment completion',
+      error: error.message
+    });
+  }
+};
