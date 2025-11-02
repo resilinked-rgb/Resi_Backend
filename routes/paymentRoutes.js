@@ -18,4 +18,7 @@ router.get('/job/:jobId', auth, paymentController.getJobPayments);
 // Get user's payment history (sent or received)
 router.get('/my-payments', auth, paymentController.getMyPayments);
 
+// Manually check payment status from PayMongo (for debugging stuck payments)
+router.post('/:paymentId/check-status', auth, paymentController.checkPaymentStatusFromPayMongo);
+
 module.exports = router;

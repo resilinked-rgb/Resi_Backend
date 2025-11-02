@@ -41,6 +41,8 @@ connectDB().catch(err => {
 const app = express();
 // Fix: Trust proxy for correct rate limiting behind Render/other proxies
 app.set('trust proxy', 1);
+// Disable ETag generation globally (we'll set cache headers per route as needed)
+app.set('etag', false);
 
 // ✅ CORS (allow React frontend in dev and Vercel deployments)
 let allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173").split(',').map(origin => origin.trim());

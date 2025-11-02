@@ -19,9 +19,16 @@ exports.initiatePayment = async (req, res) => {
     const { jobId, paymentMethod, receiptImage } = req.body;
     const employerId = req.user.id;
 
-    // Validate job
+    // Validate job and check for existing payment in parallel
     console.log('🔍 Looking up job:', jobId);
-    const job = await Job.findById(jobId).populate('postedBy assignedTo');
+    const [job, existingPayment] = await Promise.all([
+      Job.findById(jobId).populate('postedBy assignedTo').lean(),
+      Payment.findOne({ 
+        jobId: jobId,
+        status: { $in: ['succeeded', 'processing', 'pending'] }
+      })
+    ]);
+
     if (!job) {
       return res.status(404).json({ message: 'Job not found' });
     }
@@ -36,16 +43,12 @@ exports.initiatePayment = async (req, res) => {
       return res.status(400).json({ message: 'No worker has been assigned to this job' });
     }
 
-    // Check if payment already exists
-    const existingPayment = await Payment.findOne({ 
-      jobId: jobId,
-      status: { $in: ['succeeded', 'processing'] }
-    });
-    
+    // Check if payment already exists or is in progress
     if (existingPayment) {
       return res.status(400).json({ 
-        message: 'Payment already processed for this job',
-        payment: existingPayment
+        message: 'Payment already exists for this job',
+        payment: existingPayment,
+        status: existingPayment.status
       });
     }
 
@@ -109,9 +112,11 @@ exports.initiatePayment = async (req, res) => {
     // Handle PayMongo payments (gcash, paymaya, grab_pay, card)
     if (['gcash', 'paymaya', 'grab_pay'].includes(paymentMethod)) {
       // Create PayMongo source for e-wallet payments
+      // Get the primary frontend URL (first one in the list)
+      const frontendUrl = process.env.FRONTEND_URL.split(',')[0].trim();
       const redirectUrl = {
-        success: `${process.env.FRONTEND_URL}/payment/success?jobId=${jobId}`,
-        failed: `${process.env.FRONTEND_URL}/payment/failed?jobId=${jobId}`
+        success: `${frontendUrl}/payment/success?jobId=${jobId}`,
+        failed: `${frontendUrl}/payment/failed?jobId=${jobId}`
       };
 
       const sourceData = await paymongo.createSource({
@@ -216,9 +221,29 @@ exports.initiatePayment = async (req, res) => {
 
   } catch (error) {
     console.error('Error initiating payment:', error);
+    
+    // Handle timeout errors
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      return res.status(504).json({ 
+        message: 'Payment gateway timeout. Please try again.',
+        error: 'Request timed out',
+        retry: true
+      });
+    }
+
+    // Handle PayMongo API errors
+    if (error.response?.data) {
+      return res.status(error.response.status || 500).json({ 
+        message: 'Payment initiation failed',
+        error: error.response.data.errors?.[0]?.detail || error.message,
+        retry: true
+      });
+    }
+
     res.status(500).json({ 
       message: 'Failed to initiate payment',
-      error: error.message
+      error: error.message,
+      retry: true
     });
   }
 };
@@ -229,45 +254,92 @@ exports.initiatePayment = async (req, res) => {
  */
 exports.handleWebhook = async (req, res) => {
   try {
-    const event = req.body.data;
+    // PayMongo sends event directly in req.body, not req.body.data
+    const event = req.body.data || req.body;
+    const eventType = event.attributes?.type;
     
-    console.log('PayMongo webhook received:', event.attributes.type);
+    if (!eventType) {
+      console.error('❌ Invalid webhook payload:', req.body);
+      return res.status(400).json({ error: 'Invalid webhook payload' });
+    }
 
-    // Handle source.chargeable event (for GCash, GrabPay, etc.)
-    if (event.attributes.type === 'source.chargeable') {
+    console.log('📥 PayMongo webhook received:', eventType);
+    console.log('Event data:', JSON.stringify(event.attributes?.data || {}, null, 2));
+
+    // Handle source.chargeable event (for GCash, GrabPay, PayMaya)
+    if (eventType === 'source.chargeable') {
       const sourceId = event.attributes.data.id;
+      console.log('🔍 Looking for payment with sourceId:', sourceId);
+      
       const payment = await Payment.findOne({ paymongoSourceId: sourceId });
 
-      if (payment) {
-        // Create payment from source
-        const paymentData = await paymongo.createPayment(
-          sourceId,
-          paymongo.phpToCentavos(payment.amount),
-          payment.description
-        );
+      if (!payment) {
+        console.error('❌ Payment not found for source:', sourceId);
+        return res.status(404).json({ error: 'Payment not found' });
+      }
 
-        payment.status = 'processing';
-        payment.paymongoPaymentId = paymentData.data.id;
-        payment.paymongoResponse = paymentData;
-        await payment.save();
+      console.log('✅ Payment found:', payment._id);
+
+      // Only create PayMongo payment if not already processing
+      if (payment.status === 'pending' && !payment.paymongoPaymentId) {
+        try {
+          console.log('💳 Creating PayMongo payment from source...');
+          const paymentData = await paymongo.createPayment(
+            sourceId,
+            paymongo.phpToCentavos(payment.amount),
+            payment.description
+          );
+
+          payment.status = 'processing';
+          payment.paymongoPaymentId = paymentData.data.id;
+          payment.paymongoResponse = paymentData;
+          await payment.save();
+          
+          console.log('✅ Payment created successfully:', paymentData.data.id);
+        } catch (paymentError) {
+          console.error('❌ Failed to create payment:', paymentError.message);
+          payment.status = 'failed';
+          payment.errorMessage = paymentError.message;
+          await payment.save();
+          
+          // Notify employer
+          await createNotification({
+            recipient: payment.employerId,
+            type: 'payment_failed',
+            message: `Payment processing failed. Please try again.`,
+            relatedJob: payment.jobId
+          });
+        }
+      } else {
+        console.log('⏭️ Payment already processing or has paymentId:', payment.status);
       }
     }
 
     // Handle payment.paid event
-    if (event.attributes.type === 'payment.paid') {
+    if (eventType === 'payment.paid') {
       const paymentId = event.attributes.data.id;
+      console.log('🔍 Looking for payment with paymentId:', paymentId);
+      
       const payment = await Payment.findOne({ paymongoPaymentId: paymentId });
 
-      if (payment) {
-        payment.status = 'paid';
+      if (!payment) {
+        console.error('❌ Payment not found for paymentId:', paymentId);
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      console.log('✅ Payment found:', payment._id, 'Current status:', payment.status);
+
+      // Update payment to succeeded (not just "paid")
+      if (payment.status !== 'succeeded') {
+        payment.status = 'succeeded';
         payment.paidAt = new Date();
         await payment.save();
 
-        console.log('✅ Payment marked as paid:', paymentId);
+        console.log('✅ Payment marked as succeeded:', paymentId);
 
         // Mark job as completed
         const job = await Job.findById(payment.jobId);
-        if (job) {
+        if (job && !job.completed) {
           job.completed = true;
           job.completedAt = new Date();
           await job.save();
@@ -275,51 +347,76 @@ exports.handleWebhook = async (req, res) => {
           console.log('✅ Job marked as completed:', job._id);
 
           // Add income to worker's active goal (worker receives workerAmount, not total amount)
-          await addIncomeToActiveGoal(payment.workerId, payment.workerAmount);
+          try {
+            await addIncomeToActiveGoal(payment.workerId, payment.workerAmount);
+            console.log('✅ Income added to worker goal:', payment.workerAmount);
+          } catch (goalError) {
+            console.error('⚠️ Failed to update goal:', goalError.message);
+            // Don't fail webhook if goal update fails
+          }
 
-          // Send notification to worker
-          await createNotification({
-            recipient: payment.workerId,
-            type: 'payment_received',
-            message: `Payment of ₱${payment.amount.toLocaleString()} received for job: ${job.title}`,
-            relatedJob: payment.jobId
-          });
+          // Send notifications in parallel
+          await Promise.all([
+            createNotification({
+              recipient: payment.workerId,
+              type: 'payment_received',
+              message: `Payment of ₱${payment.workerAmount.toLocaleString()} received for job: ${job.title}`,
+              relatedJob: payment.jobId
+            }),
+            createNotification({
+              recipient: payment.employerId,
+              type: 'payment_confirmed',
+              message: `Payment confirmed for job: ${job.title}`,
+              relatedJob: payment.jobId
+            })
+          ]);
 
-          // Send notification to employer
-          await createNotification({
-            recipient: payment.employerId,
-            type: 'payment_confirmed',
-            message: `Payment confirmed for job: ${job.title}`,
-            relatedJob: payment.jobId
-          });
+          console.log('✅ Notifications sent successfully');
+        } else {
+          console.log('⏭️ Job already completed or not found');
         }
+      } else {
+        console.log('⏭️ Payment already marked as succeeded');
       }
     }
 
     // Handle payment.failed event
-    if (event.attributes.type === 'payment.failed') {
+    if (eventType === 'payment.failed') {
       const paymentId = event.attributes.data.id;
+      console.log('🔍 Looking for failed payment with paymentId:', paymentId);
+      
       const payment = await Payment.findOne({ paymongoPaymentId: paymentId });
 
       if (payment) {
         payment.status = 'failed';
-        payment.errorMessage = event.attributes.data.attributes.last_payment_error?.message || 'Payment failed';
+        payment.errorMessage = event.attributes.data.attributes?.last_payment_error?.message || 'Payment failed';
         await payment.save();
+
+        console.log('❌ Payment marked as failed:', paymentId);
 
         // Notify employer
         await createNotification({
           recipient: payment.employerId,
           type: 'payment_failed',
-          message: `Payment failed for job. Please try again.`,
+          message: `Payment failed: ${payment.errorMessage}. Please try again.`,
           relatedJob: payment.jobId
         });
+
+        console.log('✅ Failure notification sent');
+      } else {
+        console.error('❌ Failed payment not found:', paymentId);
       }
     }
 
-    res.status(200).json({ received: true });
+    res.status(200).json({ received: true, eventType });
   } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('❌ Webhook error:', error);
+    console.error('Error stack:', error.stack);
+    // Still return 200 to prevent PayMongo from retrying
+    res.status(200).json({ 
+      received: false, 
+      error: error.message 
+    });
   }
 };
 
@@ -421,6 +518,107 @@ exports.getMyPayments = async (req, res) => {
     console.error('Error getting user payments:', error);
     res.status(500).json({ 
       message: 'Failed to get payments',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Manually check and update payment status from PayMongo
+ * POST /api/payments/:paymentId/check-status
+ */
+exports.checkPaymentStatusFromPayMongo = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    
+    const payment = await Payment.findById(paymentId)
+      .populate('jobId', 'title price')
+      .populate('employerId', 'firstName lastName')
+      .populate('workerId', 'firstName lastName');
+
+    if (!payment) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+
+    // Verify user has access
+    const userId = req.user.id;
+    if (payment.employerId._id.toString() !== userId && payment.workerId._id.toString() !== userId) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    let paymongoStatus = null;
+    let updated = false;
+
+    // Check PayMongo payment intent status
+    if (payment.paymongoPaymentIntentId) {
+      try {
+        const intentData = await paymongo.getPaymentIntent(payment.paymongoPaymentIntentId);
+        paymongoStatus = intentData.data.attributes.status;
+        
+        console.log('PayMongo Intent Status:', paymongoStatus);
+        
+        // Update payment status if it changed
+        if (paymongoStatus === 'succeeded' && payment.status !== 'succeeded') {
+          payment.status = 'succeeded';
+          payment.paidAt = new Date();
+          await payment.save();
+          updated = true;
+          
+          // Complete job
+          const job = await Job.findById(payment.jobId);
+          if (job && !job.completed) {
+            job.completed = true;
+            job.completedAt = new Date();
+            await job.save();
+            
+            await addIncomeToActiveGoal(payment.workerId._id, payment.workerAmount);
+            
+            // Send notifications
+            await Promise.all([
+              createNotification({
+                recipient: payment.workerId._id,
+                type: 'payment_received',
+                message: `Payment of ₱${payment.workerAmount.toLocaleString()} received for job: ${job.title}`,
+                relatedJob: payment.jobId
+              }),
+              createNotification({
+                recipient: payment.employerId._id,
+                type: 'payment_confirmed',
+                message: `Payment confirmed for job: ${job.title}`,
+                relatedJob: payment.jobId
+              })
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking PayMongo intent:', error.message);
+      }
+    }
+
+    // Check source status
+    if (payment.paymongoSourceId) {
+      try {
+        const sourceData = await paymongo.getSource(payment.paymongoSourceId);
+        const sourceStatus = sourceData.data.attributes.status;
+        
+        console.log('PayMongo Source Status:', sourceStatus);
+        paymongoStatus = sourceStatus;
+      } catch (error) {
+        console.error('Error checking PayMongo source:', error.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      payment: payment,
+      paymongoStatus: paymongoStatus,
+      updated: updated,
+      message: updated ? 'Payment status updated successfully' : 'Payment status is current'
+    });
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    res.status(500).json({ 
+      message: 'Failed to check payment status',
       error: error.message
     });
   }

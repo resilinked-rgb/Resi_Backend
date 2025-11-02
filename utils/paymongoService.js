@@ -4,6 +4,15 @@ const axios = require('axios');
 const PAYMONGO_SECRET_KEY = process.env.PAYMONGO_SECRET_KEY;
 const PAYMONGO_PUBLIC_KEY = process.env.PAYMONGO_PUBLIC_KEY;
 const PAYMONGO_API_BASE = 'https://api.paymongo.com/v1';
+const API_TIMEOUT = 15000; // 15 seconds timeout
+
+// Create axios instance with default timeout
+const paymongoAxios = axios.create({
+  timeout: API_TIMEOUT,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
 
 /**
  * Create a PayMongo payment intent
@@ -22,7 +31,7 @@ exports.createPaymentIntent = async (paymentData) => {
       throw new Error('Amount must be at least ₱1.00 (100 centavos)');
     }
 
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/payment_intents`,
       {
         data: {
@@ -50,9 +59,6 @@ exports.createPaymentIntent = async (paymentData) => {
         auth: {
           username: PAYMONGO_SECRET_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );
@@ -75,7 +81,7 @@ exports.createPaymentMethod = async (paymentMethodData) => {
   try {
     const { type, details } = paymentMethodData;
 
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/payment_methods`,
       {
         data: {
@@ -89,9 +95,6 @@ exports.createPaymentMethod = async (paymentMethodData) => {
         auth: {
           username: PAYMONGO_PUBLIC_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );
@@ -112,7 +115,7 @@ exports.createPaymentMethod = async (paymentMethodData) => {
  */
 exports.attachPaymentIntent = async (paymentIntentId, paymentMethodId, returnUrl) => {
   try {
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/payment_intents/${paymentIntentId}/attach`,
       {
         data: {
@@ -126,9 +129,6 @@ exports.attachPaymentIntent = async (paymentIntentId, paymentMethodId, returnUrl
         auth: {
           username: PAYMONGO_SECRET_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );
@@ -147,7 +147,7 @@ exports.attachPaymentIntent = async (paymentIntentId, paymentMethodId, returnUrl
  */
 exports.getPaymentIntent = async (paymentIntentId) => {
   try {
-    const response = await axios.get(
+    const response = await paymongoAxios.get(
       `${PAYMONGO_API_BASE}/payment_intents/${paymentIntentId}`,
       {
         auth: {
@@ -177,7 +177,7 @@ exports.createSource = async (sourceData) => {
   try {
     const { amount, type, redirectUrl, metadata } = sourceData;
 
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/sources`,
       {
         data: {
@@ -197,9 +197,6 @@ exports.createSource = async (sourceData) => {
         auth: {
           username: PAYMONGO_SECRET_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );
@@ -220,7 +217,7 @@ exports.createSource = async (sourceData) => {
  */
 exports.createPayment = async (sourceId, amount, description) => {
   try {
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/payments`,
       {
         data: {
@@ -239,9 +236,6 @@ exports.createPayment = async (sourceId, amount, description) => {
         auth: {
           username: PAYMONGO_SECRET_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );
@@ -260,7 +254,7 @@ exports.createPayment = async (sourceId, amount, description) => {
  */
 exports.getSource = async (sourceId) => {
   try {
-    const response = await axios.get(
+    const response = await paymongoAxios.get(
       `${PAYMONGO_API_BASE}/sources/${sourceId}`,
       {
         auth: {
@@ -288,7 +282,7 @@ exports.createWebhook = async (webhookData) => {
   try {
     const { url, events } = webhookData;
 
-    const response = await axios.post(
+    const response = await paymongoAxios.post(
       `${PAYMONGO_API_BASE}/webhooks`,
       {
         data: {
@@ -302,9 +296,6 @@ exports.createWebhook = async (webhookData) => {
         auth: {
           username: PAYMONGO_SECRET_KEY,
           password: ''
-        },
-        headers: {
-          'Content-Type': 'application/json'
         }
       }
     );

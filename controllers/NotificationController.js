@@ -63,6 +63,11 @@ exports.getMyNotifications = async (req, res) => {
             }).maxTimeMS(3000)
         ]);
 
+        // Disable caching and ETag for real-time notifications
+        res.removeHeader('ETag');
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.set('Last-Modified', new Date().toUTCString());
+        
         res.status(200).json({
             success: true,
             data: notifications || [],
