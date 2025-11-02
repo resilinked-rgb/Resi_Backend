@@ -734,8 +734,64 @@ exports.completePaymentByJobId = async (req, res) => {
     let paymongoStatus = null;
     let updated = false;
 
-    // Check PayMongo source status first (for e-wallets)
-    if (payment.paymongoSourceId) {
+    // Check PayMongo payment status if we have a paymentId (for completed e-wallet payments)
+    if (payment.paymongoPaymentId) {
+      try {
+        console.log('🔍 Checking PayMongo Payment:', payment.paymongoPaymentId);
+        const paymentData = await paymongo.getPayment(payment.paymongoPaymentId);
+        const paymentStatus = paymentData.data.attributes.status;
+        
+        console.log('📊 PayMongo Payment Status:', paymentStatus);
+        paymongoStatus = paymentStatus;
+
+        // If payment succeeded/paid in PayMongo, complete it locally
+        if ((paymentStatus === 'paid' || paymentStatus === 'succeeded') && payment.status !== 'succeeded') {
+          console.log('✅ Payment succeeded! Completing job...');
+          
+          payment.status = 'succeeded';
+          payment.paidAt = new Date();
+          await payment.save();
+          updated = true;
+          
+          // Complete job
+          const job = await Job.findById(payment.jobId);
+          if (job && !job.completed) {
+            job.completed = true;
+            job.completedAt = new Date();
+            await job.save();
+            
+            console.log('✅ Job marked as completed');
+            
+            // Add income to worker goal
+            await addIncomeToActiveGoal(payment.workerId._id, payment.workerAmount);
+            console.log('✅ Income added to goal');
+            
+            // Send notifications
+            await Promise.all([
+              createNotification({
+                recipient: payment.workerId._id,
+                type: 'payment_received',
+                message: `Payment of ₱${payment.workerAmount.toLocaleString()} received for job: ${job.title}`,
+                relatedJob: payment.jobId
+              }),
+              createNotification({
+                recipient: payment.employerId._id,
+                type: 'payment_confirmed',
+                message: `Payment confirmed for job: ${job.title}`,
+                relatedJob: payment.jobId
+              })
+            ]);
+            
+            console.log('✅ Notifications sent');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error checking payment:', error.message);
+      }
+    }
+    
+    // Check PayMongo source status (for e-wallets without payment ID yet)
+    else if (payment.paymongoSourceId) {
       try {
         console.log('🔍 Checking PayMongo Source:', payment.paymongoSourceId);
         const sourceData = await paymongo.getSource(payment.paymongoSourceId);
@@ -766,7 +822,7 @@ exports.completePaymentByJobId = async (req, res) => {
     }
 
     // Check PayMongo payment intent status (for cards)
-    if (payment.paymongoPaymentIntentId) {
+    else if (payment.paymongoPaymentIntentId) {
       try {
         console.log('🔍 Checking PayMongo Intent:', payment.paymongoPaymentIntentId);
         const intentData = await paymongo.getPaymentIntent(payment.paymongoPaymentIntentId);
@@ -774,8 +830,8 @@ exports.completePaymentByJobId = async (req, res) => {
         
         console.log('📊 Intent Status:', paymongoStatus);
         
-        // If payment succeeded in PayMongo, complete it locally
-        if (paymongoStatus === 'succeeded' && payment.status !== 'succeeded') {
+        // If payment succeeded/paid in PayMongo, complete it locally
+        if ((paymongoStatus === 'succeeded' || paymongoStatus === 'paid') && payment.status !== 'succeeded') {
           console.log('✅ Payment succeeded! Completing job...');
           
           payment.status = 'succeeded';

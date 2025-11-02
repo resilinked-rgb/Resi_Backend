@@ -272,6 +272,30 @@ exports.getSource = async (sourceId) => {
 };
 
 /**
+ * Retrieve payment details
+ * @param {string} paymentId - Payment ID
+ * @returns {Promise<Object>} Payment object
+ */
+exports.getPayment = async (paymentId) => {
+  try {
+    const response = await paymongoAxios.get(
+      `${PAYMONGO_API_BASE}/payments/${paymentId}`,
+      {
+        auth: {
+          username: PAYMONGO_SECRET_KEY,
+          password: ''
+        }
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('PayMongo getPayment error:', error.response?.data || error.message);
+    throw new Error('Failed to retrieve payment');
+  }
+};
+
+/**
  * Create a webhook
  * @param {Object} webhookData - Webhook data
  * @param {string} webhookData.url - Webhook URL
